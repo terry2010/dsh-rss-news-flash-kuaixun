@@ -184,27 +184,39 @@ async function api(path) {
   return r.json()
 }
 
+const uniqById = (items) => {
+  const m = new Map()
+  for (const it of items) m.set(it.id, it)
+  return [...m.values()]
+}
+const byFetchedDesc = (a, b) => String(b.fetchedAt || '').localeCompare(String(a.fetchedAt || ''))
+
 async function load() {
-  const pages = await Promise.all([1, 2].map((p) =>
-    api(`/items?category=${encodeURIComponent('快讯')}&sort=fetched&page=${p}`).catch(() => ({ items: [] }))))
-  return pages.flatMap((x) => x.items || [])
-    .sort((a, b) => String(b.fetchedAt || '').localeCompare(String(a.fetchedAt || '')))
-    .slice(0, 150)
+  const cat = encodeURIComponent('快讯')
+  // 按源拉取：全局 sort=fetched 前 N 条会被财联社刷屏挤掉其它源（实测最近100条里财联社92条、金十仅2条）
+  if (cfg.src) {
+    const pages = await Promise.all([1, 2].map((p) =>
+      api(`/items?category=${cat}&source=${encodeURIComponent(cfg.src)}&sort=fetched&page=${p}`).catch(() => ({ items: [] }))))
+    return uniqById(pages.flatMap((x) => x.items || [])).sort(byFetchedDesc).slice(0, 150)
+  }
+  const pages = await Promise.all(SOURCES.map((s) =>
+    api(`/items?category=${cat}&source=${encodeURIComponent(s.id)}&sort=fetched&page=1`).catch(() => ({ items: [] }))))
+  return uniqById(pages.flatMap((x) => x.items || [])).sort(byFetchedDesc)
 }
 
-function render(items) {
+function render(items, markFresh = true) {
   const vis = items.filter((i) =>
     !cfg.hide[i.sourceId]
     && (!cfg.src || i.sourceId === cfg.src)
     && (cfg.mode !== 'imp' || isImp(i)))
   const list = $('#list')
   list.textContent = ''
-  if (!vis.length) { list.innerHTML = '<div class="empty">暂无快讯条目</div>'; return }
+  if (!vis.length) { list.innerHTML = '<div class="empty">暂无快讯条目</div>'; for (const it of items) known.add(it.id); firstLoad = false; return }
   const fresh = []
   for (const it of vis) {
     const row = document.createElement('div')
     row.className = 'row'
-    if (!firstLoad && !known.has(it.id)) { row.classList.add('fresh'); fresh.push(row) }
+    if (markFresh && !firstLoad && !known.has(it.id)) { row.classList.add('fresh'); fresh.push(row) }
     const t = document.createElement('span'); t.className = 't'; t.textContent = hm(it.publishedAt || it.fetchedAt)
     const s = document.createElement('span'); s.className = 'src'; s.textContent = shortOf(it.sourceId)
     const b = document.createElement('div'); b.className = 'txt'
@@ -214,21 +226,21 @@ function render(items) {
     if (cfg.mark && isImp(it)) a.className = 'imp'
     b.appendChild(a); row.append(t, s, b); list.appendChild(row)
   }
-  known = new Set(items.map((i) => i.id))
-  if (fresh.length && cfg.auto && !firstLoad) window.scrollTo({ top: 0 })
+  for (const it of items) known.add(it.id) // 并集：切源/筛选不把其它源已见条目标成"新"
+  if (fresh.length && cfg.auto && markFresh && !firstLoad) window.scrollTo({ top: 0 })
   const latest = vis[0]?.fetchedAt
   $('#meta').textContent = `${vis.length} 条 · 最新 ${latest ? hm(latest) : '—'} · ${new Date().toLocaleTimeString('zh-CN', { hour12: false })} 刷新`
   firstLoad = false
 }
 
-async function tick() {
-  try { lastItems = await load(); render(lastItems) }
+async function tick(markFresh = true) {
+  try { lastItems = await load(); render(lastItems, markFresh) }
   catch (e) { $('#meta').textContent = `加载失败：${e.message}` }
 }
 
 // ---- 控件 ----
-$('#btnNow').addEventListener('click', tick)
-$('#srcSel').addEventListener('change', (e) => { store.set('src', e.target.value); render(lastItems) })
+$('#btnNow').addEventListener('click', () => tick())
+$('#srcSel').addEventListener('change', (e) => { store.set('src', e.target.value); tick(false) })
 $('#modeSeg').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-mode]'); if (!b) return
   store.set('mode', b.dataset.mode)
