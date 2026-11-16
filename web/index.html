@@ -164,8 +164,7 @@
   </span>
   <span class="meta" id="meta">载入…</span>
   <span style="flex:1"></span>
-  <button id="btnAlert" title="关键字提醒：新快讯命中即推送桌面通知">提醒</button>
-  <button id="btnCfg" title="快讯显示设置">设置</button>
+  <button id="btnCfg" title="快讯显示与推送提醒设置">设置</button>
   <button id="btnNow">刷新</button>
 </div>
 <div id="list"></div>
@@ -178,18 +177,16 @@
     <h4>重要</h4>
     <div class="row2"><span class="nm">「重要」口径 = 源原生标记（财联社红电/金十加红/同花顺标红）；东财/见闻/新浪无原生标记不进重要视图</span></div>
     <div class="row2"><label><input type="checkbox" id="cfgMark"> 重要条目加橙标</label></div>
+    <h4>推送提醒（桌面通知，与时段快报同通道）</h4>
+    <div class="row2"><label><input type="checkbox" id="alImp"> <b>重要快讯</b></label><span class="hint" style="flex:1">源标记的重要条目抓到即推</span></div>
+    <div class="row2"><label><input type="checkbox" id="alMulti"> <b>多源快讯</b></label><span class="hint" style="flex:1">同一事件被多个源报道时推</span></div>
+    <div class="row2"><label><input type="checkbox" id="alKwOn"> <b>关键字快讯</b></label><span class="hint" style="flex:1">标题/正文命中关键字时推</span></div>
+    <div id="alKwBox" hidden>
+      <div class="tags" id="alertTags"></div>
+      <input id="alertKw" class="kw" type="text" placeholder="输入关键字后回车" autocomplete="off">
+      <div class="hint">回车上屏；点击 tag 修改、× 删除；最多 20 个。关闭开关不删词。</div>
+    </div>
     <div class="foot"><button id="cfgReset">恢复默认</button><button id="cfgOk" class="pri">完成</button></div>
-  </div>
-</div>
-
-<div id="alert" class="ovl">
-  <div class="panel">
-    <h3>快讯提醒</h3>
-    <div class="hint">新抓到的快讯命中关键字（标题或正文）时，推送桌面通知——与时段快报同一通道。回车上屏；点击 tag 可修改，× 删除；无关键字 = 关闭提醒。</div>
-    <div class="tags" id="alertTags"></div>
-    <input id="alertKw" class="kw" type="text" placeholder="输入关键字后回车" autocomplete="off">
-    <div class="hint" id="alertState"></div>
-    <div class="foot"><button id="alertReset">清空</button><button id="alertOk" class="pri">完成</button></div>
   </div>
 </div>
 
@@ -470,50 +467,18 @@ $('#fzDn').addEventListener('click', () => fzStep(-1))
 $('#fzUp').addEventListener('click', () => fzStep(1))
 
 // ---- 设置弹层 ----
-function openCfg() {
-  const box = $('#cfgSrcs'); box.textContent = ''
-  for (const s of SOURCES) {
-    const row = document.createElement('div'); row.className = 'row2'
-    row.innerHTML = `<label><input type="checkbox" data-src="${s.id}" ${cfg.hide[s.id] ? '' : 'checked'}> ${s.name}</label>
-      <span style="flex:1"></span><span style="opacity:.55">短标</span>
-      <input type="text" data-alias="${s.id}" value="${cfg.alias[s.id] || s.short}" maxlength="6">`
-    box.appendChild(row)
-  }
-  $('#cfgMark').checked = cfg.mark
-  $('#cfg').classList.add('open')
-}
-$('#btnCfg').addEventListener('click', openCfg)
-$('#cfg').addEventListener('click', (e) => { if (e.target === $('#cfg')) $('#cfg').classList.remove('open') })
-$('#cfgOk').addEventListener('click', () => {
-  const hide = {}, alias = {}
-  document.querySelectorAll('#cfgSrcs input[type="checkbox"]').forEach((c) => { if (!c.checked) hide[c.dataset.src] = true })
-  document.querySelectorAll('#cfgSrcs input[type="text"]').forEach((t) => {
-    const def = SOURCES.find((s) => s.id === t.dataset.alias)?.short
-    if (t.value.trim() && t.value.trim() !== def) alias[t.dataset.alias] = t.value.trim()
-  })
-  store.set('hide', hide); store.set('alias', alias)
-  store.set('mark', $('#cfgMark').checked)
-  $('#cfg').classList.remove('open')
-  render(lastItems)
-})
-$('#cfgReset').addEventListener('click', () => {
-  for (const k of ['hide', 'alias', 'mark']) localStorage.removeItem(`kx.${k}`)
-  openCfg()
-})
-
-// ---- 提醒弹层 ----
-// 关键字存服务端 alerts.json（/dsh-news-kuaixun/api/alerts）——命中匹配发生在
-// 插件进程的抓取 handler 里，localStorage 页面够不到，必须走 API。
 const KXAPI = '/dsh-news-kuaixun/api'
 async function kxApi(path, opts) {
   const r = await fetch(`${KXAPI}${path}`, { credentials: 'same-origin', ...opts })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json()
 }
-const alertTitle = (n) => (n ? `提醒（${n} 个关键字）` : '关键字提醒：新快讯命中即推送桌面通知')
 
 // ---- tag 式关键字编辑 ----
-let alertTags = []
+// 词存服务端 alerts.json（/dsh-news-kuaixun/api/alerts）——命中匹配发生在
+// 插件进程的抓取 handler 里，localStorage 页面够不到，必须走 API。
+// alertLoaded=false 时不回传 keywords——GET 失败不覆盖服务端词表。
+let alertTags = [], alertLoaded = false
 const SEP = /[\s,，、;；]+/
 const renderAlertTags = () => {
   const box = $('#alertTags'); box.textContent = ''
@@ -548,33 +513,57 @@ $('#alertKw').addEventListener('keydown', (e) => {
   }
 })
 $('#alertKw').addEventListener('paste', () => setTimeout(commitAlertKw, 0)) // 粘贴整串按分隔符拆成多个 tag
+$('#alKwOn').addEventListener('change', (e) => { $('#alKwBox').hidden = !e.target.checked })
 
-async function openAlert() {
-  $('#alert').classList.add('open')
-  $('#alertState').textContent = '载入…'
+async function openCfg() {
+  const box = $('#cfgSrcs'); box.textContent = ''
+  for (const s of SOURCES) {
+    const row = document.createElement('div'); row.className = 'row2'
+    row.innerHTML = `<label><input type="checkbox" data-src="${s.id}" ${cfg.hide[s.id] ? '' : 'checked'}> ${s.name}</label>
+      <span style="flex:1"></span><span style="opacity:.55">短标</span>
+      <input type="text" data-alias="${s.id}" value="${cfg.alias[s.id] || s.short}" maxlength="6">`
+    box.appendChild(row)
+  }
+  $('#cfgMark').checked = cfg.mark
+  $('#cfg').classList.add('open')
+  // 提醒配置走服务端——异步载入，不阻塞设置面板；失败时词表不回传
   try {
     const j = await kxApi('/alerts')
     alertTags = [...(j.keywords || [])]
+    alertLoaded = true
+    $('#alKwOn').checked = !!j.keyword
+    $('#alImp').checked = !!j.important
+    $('#alMulti').checked = !!j.multi
+    $('#alKwBox').hidden = !j.keyword
     $('#alertKw').value = ''
     renderAlertTags()
-    $('#alertState').textContent = alertTags.length ? `当前 ${alertTags.length} 个关键字` : '未设置（提醒关闭）'
-  } catch { $('#alertState').textContent = '读取失败——插件可能未加载' }
+  } catch { alertLoaded = false; $('#alKwBox').hidden = true }
 }
-$('#btnAlert').addEventListener('click', openAlert)
-$('#alert').addEventListener('click', (e) => { if (e.target === $('#alert')) $('#alert').classList.remove('open') })
-$('#alertOk').addEventListener('click', async () => {
+$('#btnCfg').addEventListener('click', openCfg)
+$('#cfg').addEventListener('click', (e) => { if (e.target === $('#cfg')) $('#cfg').classList.remove('open') })
+$('#cfgOk').addEventListener('click', async () => {
   commitAlertKw() // 输入框里还没上屏的词一并收进来
+  const hide = {}, alias = {}
+  document.querySelectorAll('#cfgSrcs input[type="checkbox"]').forEach((c) => { if (!c.checked) hide[c.dataset.src] = true })
+  document.querySelectorAll('#cfgSrcs input[type="text"]').forEach((t) => {
+    const def = SOURCES.find((s) => s.id === t.dataset.alias)?.short
+    if (t.value.trim() && t.value.trim() !== def) alias[t.dataset.alias] = t.value.trim()
+  })
+  store.set('hide', hide); store.set('alias', alias)
+  store.set('mark', $('#cfgMark').checked)
+  $('#cfg').classList.remove('open')
+  render(lastItems)
+  // 三通道开关 + 词表一次提交；keywords 仅在载入成功时回传（关开关不删词）
+  const body = { keyword: $('#alKwOn').checked, important: $('#alImp').checked, multi: $('#alMulti').checked }
+  if (alertLoaded) body.keywords = alertTags
   try {
-    const j = await kxApi('/alerts', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ keywords: alertTags }),
-    })
-    alertTags = [...(j.keywords || [])]
-    $('#alert').classList.remove('open')
-    $('#btnAlert').title = alertTitle(alertTags.length)
-  } catch { $('#alertState').textContent = '保存失败' }
+    await kxApi('/alerts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  } catch { /* 保存失败下次打开设置再试 */ }
 })
-$('#alertReset').addEventListener('click', () => { alertTags = []; $('#alertKw').value = ''; renderAlertTags() })
+$('#cfgReset').addEventListener('click', () => {
+  for (const k of ['hide', 'alias', 'mark']) localStorage.removeItem(`kx.${k}`)
+  openCfg()
+})
 
 // ---- 初始化 ----
 for (const s of SOURCES) {

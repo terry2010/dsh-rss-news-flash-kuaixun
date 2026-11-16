@@ -7,7 +7,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseKeywords, type AlertStore } from './alerts.js'
+import { parseKeywords, type AlertFlags, type AlertStore } from './alerts.js'
 import type { KxDb } from './db.js'
 
 const BASE = '/dsh-news-kuaixun'
@@ -102,19 +102,33 @@ export function mountUi(ws: WebServerLike, log: Log, alerts: AlertStore, db: KxD
         json(res, 200, { ok: true, total: r.total, page: Number(sp.get('page')) || 1, pageSize: 50, items })
       }),
     }),
-    // 提醒关键字：GET 读、POST 写（body {"keywords":"a b"} 或 {"keywords":[...]}）
+    // 提醒配置：GET 读全量 {keywords,keyword,important,multi}；
+    // POST 部分更新——字段缺省不动（关开关不会清关键字，词只有用户能删）
     ws.register({
       kind: 'exact', path: `${BASE}/api/alerts`,
       handler: guard(async (req, res) => {
-        if (req.method === 'GET') return json(res, 200, { keywords: alerts.keywords() })
+        if (req.method === 'GET') {
+          const c = alerts.config()
+          return json(res, 200, { keywords: c.keywords, keyword: c.keyword, important: c.important, multi: c.multi })
+        }
         if (req.method === 'POST') {
-          const body = JSON.parse((await readBody(req)) || '{}') as { keywords?: unknown }
-          const kws = parseKeywords(
-            Array.isArray(body?.keywords) ? (body.keywords as string[]).join(' ') : String(body?.keywords ?? ''),
-          )
-          alerts.setKeywords(kws)
-          log.info(`alerts: ${kws.length} keyword(s) saved`)
-          return json(res, 200, { keywords: kws })
+          const body = JSON.parse((await readBody(req)) || '{}') as {
+            keywords?: unknown; keyword?: unknown; important?: unknown; multi?: unknown
+          }
+          if (body.keywords !== undefined) {
+            const kws = parseKeywords(
+              Array.isArray(body.keywords) ? (body.keywords as string[]).join(' ') : String(body.keywords ?? ''),
+            )
+            alerts.setKeywords(kws)
+            log.info(`alerts: ${kws.length} keyword(s) saved`)
+          }
+          const flags: Partial<AlertFlags> = {}
+          if (typeof body.keyword === 'boolean') flags.keyword = body.keyword
+          if (typeof body.important === 'boolean') flags.important = body.important
+          if (typeof body.multi === 'boolean') flags.multi = body.multi
+          if (Object.keys(flags).length) alerts.setFlags(flags)
+          const c = alerts.config()
+          return json(res, 200, { keywords: c.keywords, keyword: c.keyword, important: c.important, multi: c.multi })
         }
         json(res, 405, { error: 'method not allowed' })
       }),

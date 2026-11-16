@@ -20,7 +20,8 @@ import { createFetcher, type MethodCtx, type MethodHandler, type RawItem, type S
 
 import { KxDb, resolveDataDir } from './db.js'
 import { mountUi, type WebServerLike } from './ui.js'
-import { createAlerter, openAlertStore } from './alerts.js'
+import { createAlerter, openAlertStore, type AlertItem } from './alerts.js'
+import { similarTitle } from './similar.js'
 import type { BrowserFetchLike } from './transport.js'
 import { cls } from './methods/cls.js'
 import { jin10 } from './methods/jin10.js'
@@ -69,9 +70,25 @@ export function apply(ctx: Context) {
   // ---- 独立存储 + 自有抓取管线 ----
   const db = new KxDb()
   const alerts = openAlertStore()
+  // 多源检测：新条目 ±3h 内是否已有其它源报道同一事件（标题相似度同前端聚类）
+  const findMulti = (it: AlertItem): string[] => {
+    if (!it.sourceId) return [] // 缺 sourceId 无法排除自身——宁可不报也不错报
+    const t = Date.parse(it.publishedAt || it.fetchedAt || '')
+    if (!Number.isFinite(t)) return []
+    const after = new Date(t - 3 * 3600e3).toISOString()
+    const before = new Date(t + 3 * 3600e3).toISOString()
+    const out: string[] = []
+    for (const d of sources.sources) {
+      if (d.url === it.sourceId) continue
+      const r = db.query({ source: d.url, after, before, pageSize: 50, sort: 'published' })
+      if (r.items.some((c) => similarTitle(it.title, c.title))) out.push(d.title)
+    }
+    return out
+  }
   const alerter = createAlerter({
     store: alerts,
     notify: (t, b, p) => ctx.rndSources.notify(t, b, p),
+    findMulti,
     log,
   })
   // 主插件策略 fetcher（SSRF/超时/大小限制）；proxy 沿用主插件缺省（伴随插件拿不到 prefs）
@@ -101,14 +118,22 @@ export function apply(ctx: Context) {
     if (running) return
     running = true
     try {
+      // 各源新条目先全部入库，再统一过提醒——同批跨源报道才能互相命中「多源」
+      const batch: AlertItem[] = []
       await Promise.allSettled(sources.sources.map(async (d) => {
         const h = handlers.get(d.method ?? '')
         if (!h) { log.warn(`no handler for ${d.method}`); return }
         const items: RawItem[] = await h(feedSrc(d), mctx(d))
         const fresh = db.insert(d.url, d.title, items)
         if (!db.baseline(d.url)) { db.markBaseline(d.url); return } // 首跑基线：只入库不告警
-        alerter.check(fresh.map((it) => ({ src: d.title, title: it.title, content: it.content })))
+        for (const it of fresh) {
+          batch.push({
+            src: d.title, sourceId: d.url, title: it.title, content: it.content,
+            publishedAt: it.publishedAt, fetchedAt: it.fetchedAt, hot: it.hot === 1,
+          })
+        }
       }))
+      alerter.check(batch)
     } finally { running = false }
   }
 
