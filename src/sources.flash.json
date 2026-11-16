@@ -9,7 +9,8 @@
       "lang": "zh",
       "method": "news-kuaixun:cls-telegraph",
       "summarize": false,
-      "enabled": true
+      "enabled": true,
+      "stream": true
     },
     {
       "title": "金十数据",
@@ -19,7 +20,8 @@
       "lang": "zh",
       "method": "news-kuaixun:jin10-flash",
       "summarize": false,
-      "enabled": true
+      "enabled": true,
+      "stream": true
     },
     {
       "title": "华尔街见闻",
@@ -28,7 +30,8 @@
       "tier": 1,
       "lang": "zh",
       "method": "news-kuaixun:wscn-lives",
-      "summarize": false
+      "summarize": false,
+      "stream": true
     },
     {
       "title": "东方财富",
@@ -37,7 +40,8 @@
       "tier": 2,
       "lang": "zh",
       "method": "news-kuaixun:em-ajax",
-      "summarize": false
+      "summarize": false,
+      "stream": true
     },
     {
       "title": "同花顺",
@@ -46,7 +50,8 @@
       "tier": 2,
       "lang": "zh",
       "method": "news-kuaixun:ths-push",
-      "summarize": false
+      "summarize": false,
+      "stream": true
     },
     {
       "title": "新浪财经",
@@ -55,7 +60,8 @@
       "tier": 3,
       "lang": "zh",
       "method": "news-kuaixun:sina-zhibo",
-      "summarize": false
+      "summarize": false,
+      "stream": true
     }
   ]
 }

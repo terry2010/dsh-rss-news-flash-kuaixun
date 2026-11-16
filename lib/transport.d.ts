@@ -28,7 +28,9 @@ export type Init = {
     proxy?: string | boolean;
 };
 /** node 优先；网络层/WAF 失败自动回落 browser（未装 browserFetch 则纯 node）。 */
-export declare function getDoc(ctx: MethodCtx, bf: BrowserFetchLike | undefined, domain: string, url: string, init?: Init): Promise<Doc>;
+export declare function getDoc(ctx: MethodCtx, bf: BrowserFetchLike | undefined, domain: string, url: string, init?: Init & {
+    preferBrowser?: boolean;
+}): Promise<Doc>;
 export declare function looksLikeChallenge(body: string, status: number): boolean;
 export declare function markAuth(bf: BrowserFetchLike | undefined, domain: string, on?: boolean): void;
 //# sourceMappingURL=transport.d.ts.map

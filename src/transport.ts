@@ -31,6 +31,23 @@ export async function getDoc(
   bf: BrowserFetchLike | undefined,
   domain: string,
   url: string,
+  init?: Init & { preferBrowser?: boolean },
+): Promise<Doc> {
+  if (!init?.preferBrowser || !bf) return nodeThenBrowser(ctx, bf, domain, url, init)
+  // browser 优先（端点对 node 运行时稳定挂起时——跳过固定超时空等）：browser 挂了仍回落 node
+  try {
+    const b = await bf.fetch(domain, url, { headers: init.headers })
+    return { url, status: b.status, body: b.body }
+  } catch {
+    return nodeThenBrowser(ctx, undefined, domain, url, init)
+  }
+}
+
+async function nodeThenBrowser(
+  ctx: MethodCtx,
+  bf: BrowserFetchLike | undefined,
+  domain: string,
+  url: string,
   init?: Init,
 ): Promise<Doc> {
   const r = await ctx.fetch(url, ctx.signal, init)

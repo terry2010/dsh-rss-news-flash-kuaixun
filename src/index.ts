@@ -17,6 +17,7 @@ import { readFileSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
 import type { SourceDef } from 'dsh-rss-news-daily'
 
+import { mountUi, type WebServerLike } from './ui.js'
 import type { BrowserFetchLike } from './transport.js'
 import { cls } from './methods/cls.js'
 import { jin10 } from './methods/jin10.js'
@@ -63,5 +64,23 @@ export function apply(ctx: Context) {
   ctx.rndSources.registerMethod('news-kuaixun:ths-push', ths(get))
   ctx.rndSources.registerMethod('news-kuaixun:sina-zhibo', sina(get))
   ctx.rndSources.addSources(name, sources.sources)
+
+  // 快讯快报：独立于普通快报的默认类型——只收六条 stream 源（主流 wildcard 不收 stream）
+  ctx.rndSources.registerBriefType(name, {
+    id: 'kuaixun',
+    name: '快讯快报',
+    enabled: true,
+    schedule: { kind: 'minutes', everyMinutes: 30 },
+    sourceIds: sources.sources.map((s) => s.url),
+    minScore: 0,
+    maxItems: 100,
+    focus: '财经快讯流：按时间归纳市场/宏观/公司要闻要点，同类快讯合并，不需要分析展开',
+  })
+  // 阅读器「快讯」tab：ticker 视图（密排时序流）
+  ctx.rndSources.registerView(name, { id: 'kuaixun', title: '快讯', url: '/dsh-news-kuaixun/' })
+  ctx.inject(['webServer'], (c) => {
+    const dispose = mountUi((c as unknown as { webServer: WebServerLike }).webServer, log)
+    c.effect(() => dispose)
+  })
   log.info(`kuaixun: 6 methods, ${sources.sources.length} sources, browser=${!!bf}`)
 }

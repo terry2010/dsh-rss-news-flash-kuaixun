@@ -26,6 +26,7 @@ export const ths = (bf: Bf): MethodHandler => async (src, ctx) => {
   const doc = await getDoc(ctx, bf(), DOMAIN, API, {
     headers: { Referer: `https://${DOMAIN}/` },
     accept: 'application/json',
+    preferBrowser: true, // 端点对 dsh node 运行时稳定挂起（tarpit）——browser 优先跳过超时空等
   })
   if ('error' in doc) throw new Error(doc.error)
   if (looksLikeChallenge(doc.body, doc.status)) { markAuth(bf(), DOMAIN); throw new Error(`auth-required: HTTP ${doc.status}`) }

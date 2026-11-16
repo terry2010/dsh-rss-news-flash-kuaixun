@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>快讯</title>
+<style>
+  :root { color-scheme: light dark; --ctl-h: 34px; }
+  html[data-theme="light"] { color-scheme: light; }
+  html[data-theme="dark"] { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 13px/1.55 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: Canvas; color: CanvasText;
+  }
+  .bar {
+    position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px;
+    padding: 6px 12px; background: color-mix(in srgb, Canvas 92%, CanvasText 8%);
+    border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); font-size: 12px;
+  }
+  .bar .meta { opacity: .65; }
+  .bar button {
+    height: 26px; padding: 0 10px; border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+    border-radius: 6px; background: transparent; color: inherit; cursor: pointer;
+  }
+  .bar label { display: flex; align-items: center; gap: 4px; opacity: .8; }
+  #list { padding: 0; }
+  .row {
+    display: flex; gap: 10px; padding: 5px 12px; align-items: baseline;
+    border-bottom: 1px solid color-mix(in srgb, CanvasText 8%, transparent);
+  }
+  .row.fresh { animation: flash 2.4s ease-out; }
+  @keyframes flash { from { background: color-mix(in srgb, #ff9500 22%, transparent); } to { background: transparent; } }
+  .t { flex: none; font-variant-numeric: tabular-nums; opacity: .55; font-size: 11px; padding-top: 2px; }
+  .src {
+    flex: none; font-size: 10px; opacity: .7; padding: 1px 5px; border-radius: 4px; align-self: center;
+    background: color-mix(in srgb, CanvasText 10%, transparent); white-space: nowrap;
+  }
+  .txt { flex: 1; min-width: 0; }
+  .txt a { color: inherit; text-decoration: none; }
+  .txt a:hover { text-decoration: underline; }
+  .imp { color: #d45500; font-weight: 600; }
+  .empty, .err { padding: 30px; text-align: center; opacity: .6; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <b>快讯</b>
+  <span class="meta" id="meta">载入…</span>
+  <label><input type="checkbox" id="autoroll" checked> 自动滚动新条目</label>
+  <span style="flex:1"></span>
+  <button id="btnNow">刷新</button>
+</div>
+<div id="list"></div>
+<script>
+'use strict'
+const $ = (s) => document.querySelector(s)
+const API = '/dsh-rss-news-daily/api'
+const SRC_SHORT = {
+  'https://www.cls.cn/telegraph': '财联社',
+  'https://www.jin10.com/': '金十',
+  'https://wallstreetcn.com/live': '见闻',
+  'https://kuaixun.eastmoney.com/': '东财',
+  'https://news.10jqka.com.cn/': '同花顺',
+  'https://finance.sina.com.cn/7x24': '新浪',
+}
+let known = new Set()
+let firstLoad = true
+
+// 主题：?theme= 首帧 + rnd-theme postMessage 跟随主阅读器
+const q = new URLSearchParams(location.search)
+if (q.get('theme')) document.documentElement.dataset.theme = q.get('theme')
+window.addEventListener('message', (e) => {
+  if (e.data?.type === 'rnd-theme' && e.data.theme) document.documentElement.dataset.theme = e.data.theme
+})
+
+const hm = (iso) => {
+  const d = new Date(iso)
+  const now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return sameDay ? t : `${d.getMonth() + 1}/${d.getDate()} ${t}`
+}
+const txt = (it) => (it.title || '').trim() || (it.content || '').replace(/<[^>]+>/g, '').trim()
+const isImp = (it) => (it.llmScore ?? it.score ?? 0) >= 8
+
+async function api(path) {
+  const r = await fetch(`${API}${path}`, { credentials: 'same-origin' })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json()
+}
+
+async function load() {
+  // 取最近两页（每页=主插件 readerPageSize）合并按 fetchedAt 倒序
+  const pages = await Promise.all([1, 2].map((p) =>
+    api(`/items?category=${encodeURIComponent('快讯')}&sort=fetched&page=${p}`).catch(() => ({ items: [] }))))
+  const items = (pages.flatMap((x) => x.items || []))
+    .sort((a, b) => String(b.fetchedAt || '').localeCompare(String(a.fetchedAt || '')))
+    .slice(0, 120)
+  return items
+}
+
+function render(items) {
+  const list = $('#list')
+  const atTop = window.scrollY < 40
+  const fresh = []
+  list.textContent = ''
+  if (!items.length) { list.innerHTML = '<div class="empty">暂无快讯条目</div>'; return }
+  for (const it of items) {
+    const row = document.createElement('div')
+    row.className = 'row'
+    if (!firstLoad && !known.has(it.id)) { row.classList.add('fresh'); fresh.push(row) }
+    const t = document.createElement('span'); t.className = 't'; t.textContent = hm(it.publishedAt || it.fetchedAt)
+    const s = document.createElement('span'); s.className = 'src'; s.textContent = SRC_SHORT[it.sourceId] || '快讯'
+    const b = document.createElement('div'); b.className = 'txt'
+    const a = document.createElement('a')
+    a.href = it.link || '#'; a.target = '_blank'; a.rel = 'noopener noreferrer'
+    a.textContent = txt(it) || '(无文本)'
+    if (isImp(it)) a.className = 'imp'
+    b.appendChild(a)
+    row.append(t, s, b)
+    list.appendChild(row)
+  }
+  known = new Set(items.map((i) => i.id))
+  if (fresh.length && $('#autoroll').checked && !firstLoad) window.scrollTo({ top: 0 })
+  const latest = items[0]?.fetchedAt
+  $('#meta').textContent = `${items.length} 条 · 最新 ${latest ? hm(latest) : '—'} · ${new Date().toLocaleTimeString('zh-CN', { hour12: false })} 刷新`
+  firstLoad = false
+}
+
+async function tick() {
+  try { render(await load()) }
+  catch (e) { $('#meta').textContent = `加载失败：${e.message}` }
+}
+$('#btnNow').addEventListener('click', tick)
+tick()
+setInterval(() => { if (!document.hidden) tick() }, 30000)
+</script>
+</body>
+</html>
