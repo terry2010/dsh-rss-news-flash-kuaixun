@@ -1,0 +1,7 @@
+# dsh-news-kuaixun bundle patch.
+# id 必须与插件 export const name 一致。
+
+- insert:
+    - id: news-kuaixun
+      name: 'dsh-news-kuaixun'
+      config: {}
