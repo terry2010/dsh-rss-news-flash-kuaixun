@@ -202,7 +202,7 @@ const SOURCES = [
   { id: 'https://wallstreetcn.com/live', name: '华尔街见闻', short: '见闻' },
   { id: 'https://kuaixun.eastmoney.com/', name: '东方财富', short: '东财' },
   { id: 'https://news.10jqka.com.cn/', name: '同花顺', short: '同花顺' },
-  { id: 'https://finance.sina.com.cn/7x24', name: '新浪财经', short: '新浪' },
+  { id: 'https://finance.sina.com.cn/7x24/', name: '新浪财经', short: '新浪' }, // 尾斜杠必须与 sources.flash.json 一致——source= 是精确匹配
 ]
 
 // ---- 视图层配置（localStorage：伴随页自己的持久层，不动主插件 prefs） ----
@@ -212,7 +212,10 @@ const store = {
 }
 const cfg = {
   get fz() { return store.get('fz', 1) },
-  get src() { return store.get('src', '') },            // '' = 全部源
+  get src() { // 旧值可能缺尾斜杠（新浪源 id 修过）——归一到 SOURCES 里的规范 id
+    const v = String(store.get('src', ''))
+    return SOURCES.find((s) => s.id === v || s.id.replace(/\/$/, '') === v.replace(/\/$/, ''))?.id ?? ''
+  },            // '' = 全部源
   get modes() { // 多选过滤集：[] = 全部；旧版单选字符串自动迁移
     const v = store.get('mode', 'all')
     if (Array.isArray(v)) return v.filter((m) => m === 'imp' || m === 'multi')
