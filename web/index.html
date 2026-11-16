@@ -344,15 +344,16 @@ function render(clusters, markFresh = true) {
     if (markFresh && !firstLoad && c.items.some((m) => !known.has(m.id))) { row.classList.add('fresh'); fresh.push(row) }
     const t = document.createElement('span'); t.className = 't'; t.textContent = hm(rep.publishedAt || rep.fetchedAt)
     const s = document.createElement('span')
-    // 按源计数：多源簇显示「财联社×3 同花顺」式分布，避免「财联社×4」被误读为 4 条财联社
+    // 按源计数：多源簇显示「6条 财联社×3 同花顺×2 新浪」式——总数在前、逐源分布在后
     const cnt = new Map()
     for (const m of c.items) if (!cfg.hide[m.sourceId]) cnt.set(m.sourceId, (cnt.get(m.sourceId) ?? 0) + 1)
     if (cnt.size > 1) {
       const parts = [...cnt.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
         .map(([id, n]) => (n > 1 ? `${shortOf(id)}×${n}` : shortOf(id)))
+      const total = [...cnt.values()].reduce((a, b) => a + b, 0)
       s.className = 'src multi'
-      s.textContent = `${parts.join(' ')}${expanded.has(rep.id) ? ' ▾' : ' ▸'}`
-      s.title = `${parts.join('、')} —— 点击展开各源报道`
+      s.textContent = `${total}条 ${parts.join(' ')}${expanded.has(rep.id) ? ' ▾' : ' ▸'}`
+      s.title = `共 ${total} 条：${parts.join('、')} —— 点击展开各源报道`
       s.addEventListener('click', (e) => {
         e.stopPropagation()
         const k = rep.id
