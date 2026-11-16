@@ -73,7 +73,7 @@
   }
   .src.multi { background: color-mix(in srgb, #2f6feb 16%, transparent); color: #2f6feb; font-weight: 600; opacity: 1; cursor: pointer; max-width: 46%; overflow: hidden; text-overflow: ellipsis; }
   .src.multi:hover { background: color-mix(in srgb, #2f6feb 28%, transparent); }
-  .src.multi .tot { font-weight: 700; padding-right: 5px; margin-right: 1px; border-right: 1px solid color-mix(in srgb, #2f6feb 45%, transparent); }
+  .src.multi .tot { display: inline-block; font-weight: 700; padding: 0 4px; margin-right: 4px; border-radius: 3px; background: #2f6feb; color: #fff; }
   /* 聚合簇展开后的各源子行 */
   .row.sub { padding-left: 58px; background: color-mix(in srgb, CanvasText 3%, transparent); }
   .row.sub .t, .row.sub .src { font-size: .8em; }
@@ -356,7 +356,7 @@ function render(clusters, markFresh = true) {
       const tot = document.createElement('span')
       tot.className = 'tot'; tot.textContent = `${total}条`
       s.appendChild(tot)
-      s.appendChild(document.createTextNode(` ${parts.join(' ')}${expanded.has(rep.id) ? ' ▾' : ' ▸'}`))
+      s.appendChild(document.createTextNode(`${parts.join(' ')}${expanded.has(rep.id) ? ' ▾' : ' ▸'}`))
       s.title = `共 ${total} 条：${parts.join('、')} —— 点击展开各源报道`
       s.addEventListener('click', (e) => {
         e.stopPropagation()
