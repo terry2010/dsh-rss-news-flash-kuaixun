@@ -71,6 +71,7 @@
     flex: none; font-size: .75em; opacity: .7; padding: 1px 5px; border-radius: 4px; align-self: center;
     background: color-mix(in srgb, CanvasText 10%, transparent); white-space: nowrap;
   }
+  .src.multi { background: color-mix(in srgb, #2f6feb 16%, transparent); color: #2f6feb; font-weight: 600; opacity: 1; }
   .txt { flex: 1; min-width: 0; }
   .txt a { color: inherit; text-decoration: none; }
   .txt a:hover { text-decoration: underline; }
@@ -141,7 +142,7 @@
   </select>
   <input type="date" id="from" hidden><input type="date" id="to" hidden>
   <span class="seg" id="modeSeg">
-    <button data-mode="all" class="on">全部</button><button data-mode="imp">重要</button>
+    <button data-mode="all" class="on">全部</button><button data-mode="imp">重要</button><button data-mode="multi">多源</button>
   </span>
   <input type="number" id="ivMin" min="1" max="60" step="1" title="刷新间隔（分钟，最小 1）" value="1"><span style="opacity:.55">分钟</span>
   <label class="tgl" title="按左侧间隔自动刷新并滚到最新"><input type="checkbox" id="autoTgl" checked><span class="trk"></span>自动刷新</label>
@@ -241,6 +242,47 @@ const uniqById = (items) => {
 }
 const byFetchedDesc = (a, b) => String(b.fetchedAt || '').localeCompare(String(a.fetchedAt || ''))
 
+// ---- 跨源聚类：标题归一化后 bigram Dice 相似度，并查集合并同一事件 ----
+// 六源同一新闻经常重复上榜——聚成一行，源徽标显示「首发源×N」。
+const normTitle = (t) => (t || '').toLowerCase()
+  .replace(/【[^】]*】|\[[^\]]*\]|（[^）]*）|\([^)]*\)/g, ' ')   // 【财联社】/[快讯] 类前后缀
+  .replace(/[\s"'“”‘’《》「」『』:：;；,，.。!！?？、·\-—_~|/\\+*=&%$#@^<>]+/g, '')
+const bigrams = (s) => { const m = new Set(); for (let i = 0; i + 1 < s.length; i++) m.add(s.slice(i, i + 2)); return m }
+const dice = (a, b) => { if (!a.size || !b.size) return 0; let n = 0; for (const x of a) if (b.has(x)) n++; return 2 * n / (a.size + b.size) }
+// 长标题 0.55 即并；归一化后 <8 字的短标题收紧到 0.72，防「收评/快讯」类泛词误并
+const SIM_LOOSE = 0.55, SIM_SHORT = 0.72, SHORT_LEN = 8
+
+function clusterize(items) {
+  const n = items.length
+  if (!n) return []
+  const norms = items.map((it) => normTitle(txt(it)))
+  const grams = norms.map(bigrams)
+  const parent = items.map((_, i) => i)
+  const find = (x) => (parent[x] === x ? x : (parent[x] = find(parent[x])))
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const a = grams[i], b = grams[j]
+      if (!a.size || !b.size) continue
+      const th = Math.min(norms[i].length, norms[j].length) < SHORT_LEN ? SIM_SHORT : SIM_LOOSE
+      if (dice(a, b) >= th) parent[find(i)] = find(j)
+    }
+  }
+  const groups = new Map()
+  items.forEach((it, i) => {
+    const r = find(i)
+    if (!groups.has(r)) groups.set(r, [])
+    groups.get(r).push(it)
+  })
+  const clusters = [...groups.values()].map((members) => {
+    members.sort((a, b) => Number(isImp(b)) - Number(isImp(a))
+      || txt(b).length - txt(a).length || byFetchedDesc(a, b))
+    const srcs = [...new Set(members.map((m) => m.sourceId))]
+    return { items: members, rep: members[0], srcs, hot: members.some(isImp) }
+  })
+  clusters.sort((a, b) => byFetchedDesc(a.rep, b.rep))
+  return clusters
+}
+
 const DAY = 86400e3
 const dayStart = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
 const iso = (d) => d.toISOString()
@@ -268,39 +310,54 @@ async function load() {
   // 按源拉取：全局 sort=fetched 前 N 条会被财联社刷屏挤掉其它源（实测最近100条里财联社92条、金十仅2条）
   if (cfg.src) {
     const pages = await Promise.all([1, 2].map((p) => page(cfg.src, p)))
-    return uniqById(pages.flatMap((x) => x.items || [])).sort(byFetchedDesc).slice(0, 150)
+    return clusterize(uniqById(pages.flatMap((x) => x.items || [])).sort(byFetchedDesc).slice(0, 150))
   }
   const pages = await Promise.all(SOURCES.map((s) => page(s.id, 1)))
-  return uniqById(pages.flatMap((x) => x.items || [])).sort(byFetchedDesc)
+  return clusterize(uniqById(pages.flatMap((x) => x.items || [])).sort(byFetchedDesc))
 }
 
-function render(items, markFresh = true) {
-  const vis = items.filter((i) =>
-    !cfg.hide[i.sourceId]
-    && (!cfg.src || i.sourceId === cfg.src)
-    && (cfg.mode !== 'imp' || isImp(i)))
+// visSrcs：簇内未被「显示源」隐藏的源集合——空=整簇隐藏；multi 计数按它算
+const visSrcs = (c) => [...new Set(c.items.map((m) => m.sourceId).filter((s) => !cfg.hide[s]))]
+
+function render(clusters, markFresh = true) {
+  const vis = clusters.filter((c) => {
+    const srcs = visSrcs(c)
+    return srcs.length
+      && (!cfg.src || c.items.some((m) => m.sourceId === cfg.src))
+      && (cfg.mode !== 'imp' || c.hot)
+      && (cfg.mode !== 'multi' || srcs.length >= 2)
+  })
   const list = $('#list')
   list.textContent = ''
-  if (!vis.length) { list.innerHTML = '<div class="empty">暂无快讯条目</div>'; for (const it of items) known.add(it.id); firstLoad = false; return }
+  const markKnown = () => { for (const c of clusters) for (const m of c.items) known.add(m.id); firstLoad = false }
+  if (!vis.length) { list.innerHTML = '<div class="empty">暂无快讯条目</div>'; markKnown(); return }
   const fresh = []
-  for (const it of vis) {
+  for (const c of vis) {
+    const rep = c.rep, srcs = visSrcs(c)
     const row = document.createElement('div')
     row.className = 'row'
-    if (markFresh && !firstLoad && !known.has(it.id)) { row.classList.add('fresh'); fresh.push(row) }
-    const t = document.createElement('span'); t.className = 't'; t.textContent = hm(it.publishedAt || it.fetchedAt)
-    const s = document.createElement('span'); s.className = 'src'; s.textContent = shortOf(it.sourceId)
+    if (markFresh && !firstLoad && c.items.some((m) => !known.has(m.id))) { row.classList.add('fresh'); fresh.push(row) }
+    const t = document.createElement('span'); t.className = 't'; t.textContent = hm(rep.publishedAt || rep.fetchedAt)
+    const s = document.createElement('span')
+    if (srcs.length > 1) {
+      s.className = 'src multi'
+      s.textContent = `${shortOf(srcs[0])}×${srcs.length}`
+      s.title = srcs.map(shortOf).join('、')
+    } else {
+      s.className = 'src'; s.textContent = shortOf(srcs[0] ?? rep.sourceId)
+    }
     const b = document.createElement('div'); b.className = 'txt'
     const a = document.createElement('a')
-    a.href = it.link || '#'; a.target = '_blank'; a.rel = 'noopener noreferrer'
-    a.textContent = txt(it) || '(无文本)'
-    if (cfg.mark && isImp(it)) a.className = 'imp'
+    a.href = rep.link || '#'; a.target = '_blank'; a.rel = 'noopener noreferrer'
+    a.textContent = txt(rep) || '(无文本)'
+    if (cfg.mark && c.hot) a.className = 'imp'
     b.appendChild(a); row.append(t, s, b); list.appendChild(row)
   }
-  for (const it of items) known.add(it.id) // 并集：切源/筛选不把其它源已见条目标成"新"
+  markKnown() // 并集：切源/筛选不把其它源已见条目标成"新"
   if (fresh.length && cfg.auto && markFresh && !firstLoad) window.scrollTo({ top: 0 })
-  const latest = vis[0]?.fetchedAt
-  $('#meta').textContent = `${vis.length} 条${kw ? ` · "${kw}"` : ''} · 最新 ${latest ? hm(latest) : '—'} · ${new Date().toLocaleTimeString('zh-CN', { hour12: false })} 刷新`
-  firstLoad = false
+  const latest = vis[0]?.rep?.fetchedAt
+  const itemCount = vis.reduce((n, c) => n + c.items.length, 0)
+  $('#meta').textContent = `${vis.length} 组 · ${itemCount} 条${kw ? ` · "${kw}"` : ''} · 最新 ${latest ? hm(latest) : '—'} · ${new Date().toLocaleTimeString('zh-CN', { hour12: false })} 刷新`
 }
 
 async function tick(markFresh = true) {
