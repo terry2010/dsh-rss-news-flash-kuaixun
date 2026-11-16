@@ -71,7 +71,7 @@
     flex: none; font-size: .75em; opacity: .7; padding: 1px 5px; border-radius: 4px; align-self: center;
     background: color-mix(in srgb, CanvasText 10%, transparent); white-space: nowrap;
   }
-  .src.multi { background: color-mix(in srgb, #2f6feb 16%, transparent); color: #2f6feb; font-weight: 600; opacity: 1; cursor: pointer; }
+  .src.multi { background: color-mix(in srgb, #2f6feb 16%, transparent); color: #2f6feb; font-weight: 600; opacity: 1; cursor: pointer; max-width: 46%; overflow: hidden; text-overflow: ellipsis; }
   .src.multi:hover { background: color-mix(in srgb, #2f6feb 28%, transparent); }
   /* 聚合簇展开后的各源子行 */
   .row.sub { padding-left: 58px; background: color-mix(in srgb, CanvasText 3%, transparent); }
@@ -344,10 +344,15 @@ function render(clusters, markFresh = true) {
     if (markFresh && !firstLoad && c.items.some((m) => !known.has(m.id))) { row.classList.add('fresh'); fresh.push(row) }
     const t = document.createElement('span'); t.className = 't'; t.textContent = hm(rep.publishedAt || rep.fetchedAt)
     const s = document.createElement('span')
-    if (srcs.length > 1) {
+    // 按源计数：多源簇显示「财联社×3 同花顺」式分布，避免「财联社×4」被误读为 4 条财联社
+    const cnt = new Map()
+    for (const m of c.items) if (!cfg.hide[m.sourceId]) cnt.set(m.sourceId, (cnt.get(m.sourceId) ?? 0) + 1)
+    if (cnt.size > 1) {
+      const parts = [...cnt.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([id, n]) => (n > 1 ? `${shortOf(id)}×${n}` : shortOf(id)))
       s.className = 'src multi'
-      s.textContent = `${shortOf(srcs[0])}×${srcs.length}${expanded.has(rep.id) ? ' ▾' : ' ▸'}`
-      s.title = `${srcs.map(shortOf).join('、')} —— 点击展开各源报道`
+      s.textContent = `${parts.join(' ')}${expanded.has(rep.id) ? ' ▾' : ' ▸'}`
+      s.title = `${parts.join('、')} —— 点击展开各源报道`
       s.addEventListener('click', (e) => {
         e.stopPropagation()
         const k = rep.id
