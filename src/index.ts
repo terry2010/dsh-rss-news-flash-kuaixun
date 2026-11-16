@@ -4,19 +4,21 @@
  * 契约（cordis bundle）：
  *  - name    'news-kuaixun'（cordis.patch.yml 里 id 必须一致）
  *  - inject  ['rndSources']（静态依赖：主插件服务未就位不执行）
- *  - apply   registerMethod×6 + addSources(六条快讯源)
+ *  - apply   独立抓取管线（自有 fetcher/kv/轮询/SQLite）+ 提醒 + 视图注册
+ *
+ * 存储完全独立：条目/源定义/游标全在 companions/news-kuaixun/kuaixun.db，
+ * 不进主插件 store.db。启动时调 rndSources.removeSources 清掉历史注入数据。
+ * 仍消费 rndSources 的 notify（桌面通知）与 registerView（阅读器 tab）。
  *
  * browserFetch 为可选依赖（ctx.inject 动态）——装了 dsh-rss-news-browser-fetch 时
  * node fetch 失败的请求自动回落专用 Chrome 页面内 fetch；未装则纯 node。
- *
- * 本包只含「端点知识」：URL/签名/字段映射/源定义。调度/去重/存储归主插件，
- * 浏览器传输归 browser-fetch 包。
  */
 
 import { readFileSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
-import type { SourceDef } from 'dsh-rss-news-daily'
+import { createFetcher, type MethodCtx, type MethodHandler, type RawItem, type SourceDef } from 'dsh-rss-news-daily'
 
+import { KxDb, resolveDataDir } from './db.js'
 import { mountUi, type WebServerLike } from './ui.js'
 import { createAlerter, openAlertStore } from './alerts.js'
 import type { BrowserFetchLike } from './transport.js'
@@ -30,7 +32,7 @@ import { sina } from './methods/sina.js'
 export const name = 'news-kuaixun'
 export const inject = ['rndSources']
 
-/** 源定义：method 名 = 'news-kuaixun:<方法>'，与下方 registerMethod 一一对应。 */
+/** 源定义：method 名 = 'news-kuaixun:<方法>'，与下方 handlers 一一对应。 */
 const sources = JSON.parse(
   readFileSync(new URL('./sources.flash.json', import.meta.url), 'utf8'),
 ) as { sources: SourceDef[] }
@@ -45,6 +47,11 @@ const DOMAINS = [
   'sina.com.cn', 'zhibo.sina.com.cn',
 ]
 
+/** 抓取周期：六源都是轻量 JSON/列表端点，60s 一轮足够快讯时效 */
+const POLL_MS = 60_000
+
+type FeedSourceLike = Parameters<MethodHandler>[0]
+
 export function apply(ctx: Context) {
   const log = ctx.logger('kuaixun')
   if (ctx.rndSources.apiVersion < 1) {
@@ -58,39 +65,72 @@ export function apply(ctx: Context) {
     log.info('browserFetch attached: node-first with browser fallback enabled')
   })
   const get = () => bf
-  // 快讯提醒：关键词命中 → rndSources.notify（与快报同一桌面通知通道）。
-  // handler 包装层做 seen-ID 去重 + 窗口聚合（一轮多条合并成一条通知）。
+
+  // ---- 独立存储 + 自有抓取管线 ----
+  const db = new KxDb()
   const alerts = openAlertStore()
   const alerter = createAlerter({
     store: alerts,
     notify: (t, b, p) => ctx.rndSources.notify(t, b, p),
     log,
   })
-  ctx.effect(() => () => alerter.dispose())
-  ctx.rndSources.registerMethod('news-kuaixun:cls-telegraph', alerter.wrap(cls(get)))
-  ctx.rndSources.registerMethod('news-kuaixun:jin10-flash', alerter.wrap(jin10(get)))
-  ctx.rndSources.registerMethod('news-kuaixun:wscn-lives', alerter.wrap(wscn(get)))
-  ctx.rndSources.registerMethod('news-kuaixun:em-ajax', alerter.wrap(eastmoney(get)))
-  ctx.rndSources.registerMethod('news-kuaixun:ths-push', alerter.wrap(ths(get)))
-  ctx.rndSources.registerMethod('news-kuaixun:sina-zhibo', alerter.wrap(sina(get)))
-  ctx.rndSources.addSources(name, sources.sources)
+  // 主插件策略 fetcher（SSRF/超时/大小限制）；proxy 沿用主插件缺省（伴随插件拿不到 prefs）
+  const fetcher = createFetcher({ timeoutMs: 12_000, retries: 1 })
 
-  // 快讯快报：独立于普通快报的默认类型——只收六条 stream 源（主流 wildcard 不收 stream）
-  ctx.rndSources.registerBriefType(name, {
-    id: 'kuaixun',
-    name: '快讯快报',
-    enabled: true,
-    schedule: { kind: 'minutes', everyMinutes: 30 },
-    sourceIds: sources.sources.map((s) => s.url),
-    minScore: 0,
-    maxItems: 100,
-    focus: '财经快讯流：按时间归纳市场/宏观/公司要闻要点，同类快讯合并，不需要分析展开',
+  const handlers = new Map<string, MethodHandler>([
+    ['news-kuaixun:cls-telegraph', cls(get)],
+    ['news-kuaixun:jin10-flash', jin10(get)],
+    ['news-kuaixun:wscn-lives', wscn(get)],
+    ['news-kuaixun:em-ajax', eastmoney(get)],
+    ['news-kuaixun:ths-push', ths(get)],
+    ['news-kuaixun:sina-zhibo', sina(get)],
+  ])
+  const feedSrc = (d: SourceDef): FeedSourceLike => ({
+    id: d.url, url: d.url, title: d.title, category: d.category ?? '快讯',
+    tier: d.tier ?? 1, lang: d.lang ?? 'zh', method: d.method ?? '',
+    enabled: d.enabled !== false, builtin: false, provider: name, weight: 1,
+    summarize: false, stream: true, addedAt: '', cooldownHours: d.cooldownHours,
+    health: { ok: 0, fail: 0, failStreak: 0 },
+  }) as FeedSourceLike
+  const mctx = (d: SourceDef): MethodCtx => ({
+    fetch: fetcher, log, signal: undefined, kv: db.kv(d.url),
   })
-  // 阅读器「快讯」tab：ticker 视图（密排时序流）
+
+  let running = false
+  const poll = async () => {
+    if (running) return
+    running = true
+    try {
+      await Promise.allSettled(sources.sources.map(async (d) => {
+        const h = handlers.get(d.method ?? '')
+        if (!h) { log.warn(`no handler for ${d.method}`); return }
+        const items: RawItem[] = await h(feedSrc(d), mctx(d))
+        const fresh = db.insert(d.url, d.title, items)
+        if (!db.baseline(d.url)) { db.markBaseline(d.url); return } // 首跑基线：只入库不告警
+        alerter.check(fresh.map((it) => ({ src: d.title, title: it.title, content: it.content })))
+      }))
+    } finally { running = false }
+  }
+
+  // 历史清理：早期版本把六源注入主库（sources+items+methodState）——转独立存储后清掉
+  void ctx.rndSources.removeSources(name).then((n) => {
+    if (n) log.info(`cleaned ${n} legacy source(s) + items from main store`)
+  })
+
+  void poll()
+  const timer = setInterval(() => { void poll() }, POLL_MS)
+  timer.unref?.()
+
+  // 阅读器「快讯」tab：ticker 视图（密排时序流，数据走本插件 /api/items）
   ctx.rndSources.registerView(name, { id: 'kuaixun', title: '快讯', url: '/dsh-news-kuaixun/' })
   ctx.inject(['webServer'], (c) => {
-    const dispose = mountUi((c as unknown as { webServer: WebServerLike }).webServer, log, alerts)
+    const dispose = mountUi((c as unknown as { webServer: WebServerLike }).webServer, log, alerts, db)
     c.effect(() => dispose)
   })
-  log.info(`kuaixun: 6 methods, ${sources.sources.length} sources, browser=${!!bf}`)
+  ctx.effect(() => () => {
+    clearInterval(timer)
+    alerter.dispose()
+    db.close()
+  })
+  log.info(`kuaixun: independent pipeline, ${sources.sources.length} sources @${POLL_MS / 1000}s, db=${resolveDataDir()}`)
 }

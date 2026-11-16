@@ -8,6 +8,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseKeywords, type AlertStore } from './alerts.js'
+import type { KxDb } from './db.js'
 
 const BASE = '/dsh-news-kuaixun'
 
@@ -67,8 +68,8 @@ const json = (res: Res, code: number, body: unknown) => {
   res.end(JSON.stringify(body))
 }
 
-/** 注册 ticker 页路由 + 提醒关键字 API；返回 disposer。MOUNT 于 ctx.inject(['webServer']) 内调用。 */
-export function mountUi(ws: WebServerLike, log: Log, alerts: AlertStore): () => void {
+/** 注册 ticker 页路由 + 条目/提醒 API；返回 disposer。MOUNT 于 ctx.inject(['webServer']) 内调用。 */
+export function mountUi(ws: WebServerLike, log: Log, alerts: AlertStore, db: KxDb): () => void {
   const guard = (fn: (req: Req, res: Res) => void | Promise<void>) => (req: Req, res: Res): Promise<void> => {
     if (!sameSite(req)) { res.statusCode = 403; res.end('forbidden'); return Promise.resolve() }
     return Promise.resolve(fn(req, res)).catch(() => { res.statusCode = 500; res.end('error') })
@@ -77,6 +78,30 @@ export function mountUi(ws: WebServerLike, log: Log, alerts: AlertStore): () => 
     ws.register({ kind: 'exact', path: `${BASE}/`, handler: guard((_q, r) => serveStatic(r, 'index.html')) }),
     ws.register({ kind: 'exact', path: BASE, handler: guard((_q, r) => serveStatic(r, 'index.html')) }),
     ws.register({ kind: 'prefix', path: `${BASE}/web`, handler: guard((q, r) => serveStatic(r, (q.url || '').replace(`${BASE}/web/`, ''))) }),
+    // 条目查询：source/q/after/before/sort/page/pageSize——参数口径对齐主插件 /api/items
+    ws.register({
+      kind: 'exact', path: `${BASE}/api/items`,
+      handler: guard((req, res) => {
+        const u = new URL(req.url || '', 'http://x')
+        const sp = u.searchParams
+        const r = db.query({
+          source: sp.get('source') || undefined,
+          q: (sp.get('q') || '').toLowerCase() || undefined,
+          after: sp.get('after') || undefined,
+          before: sp.get('before') || undefined,
+          sort: sp.get('sort') || undefined,
+          page: Number(sp.get('page')) || 1,
+          pageSize: Number(sp.get('pageSize')) || 50,
+        })
+        const items = r.items.map((it) => ({
+          id: it.id, sourceId: it.sourceId, title: it.title, link: it.link,
+          summary: it.summary, content: it.content,
+          publishedAt: it.publishedAt, fetchedAt: it.fetchedAt,
+          state: { hot: it.hot === 1 },
+        }))
+        json(res, 200, { ok: true, total: r.total, page: Number(sp.get('page')) || 1, pageSize: 50, items })
+      }),
+    }),
     // 提醒关键字：GET 读、POST 写（body {"keywords":"a b"} 或 {"keywords":[...]}）
     ws.register({
       kind: 'exact', path: `${BASE}/api/alerts`,

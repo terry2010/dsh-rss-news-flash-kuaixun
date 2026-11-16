@@ -4,6 +4,7 @@
  * 与主插件/browser-fetch 同一套 webServer 路由惯例（kind + sameSite 防护）。
  */
 import { type AlertStore } from './alerts.js';
+import type { KxDb } from './db.js';
 interface Req {
     method?: string;
     url?: string;
@@ -26,7 +27,7 @@ export interface WebServerLike {
 type Log = {
     info(msg: string): void;
 };
-/** 注册 ticker 页路由 + 提醒关键字 API；返回 disposer。MOUNT 于 ctx.inject(['webServer']) 内调用。 */
-export declare function mountUi(ws: WebServerLike, log: Log, alerts: AlertStore): () => void;
+/** 注册 ticker 页路由 + 条目/提醒 API；返回 disposer。MOUNT 于 ctx.inject(['webServer']) 内调用。 */
+export declare function mountUi(ws: WebServerLike, log: Log, alerts: AlertStore, db: KxDb): () => void;
 export {};
 //# sourceMappingURL=ui.d.ts.map

@@ -182,7 +182,7 @@
 <script>
 'use strict'
 const $ = (s) => document.querySelector(s)
-const API = '/dsh-rss-news-daily/api'
+const API = '/dsh-news-kuaixun/api' // 独立库：条目/提醒都走本插件端点，不再读主插件 /api/items
 const SOURCES = [
   { id: 'https://www.cls.cn/telegraph', name: '财联社电报', short: '财联社' },
   { id: 'https://www.jin10.com/', name: '金十数据', short: '金十' },
@@ -262,10 +262,9 @@ function rangeBounds() {
 }
 
 async function load() {
-  const cat = encodeURIComponent('快讯')
   const rb = kw ? rangeBounds() : {}
-  const k = kw ? `&q=${encodeURIComponent(kw)}${rb.after ? `&after=${encodeURIComponent(rb.after)}` : ''}${rb.before ? `&before=${encodeURIComponent(rb.before)}` : ''}` : '' // 后端 FTS/LIKE+时间范围，库内全量不只当前页
-  const page = (source, p) => api(`/items?category=${cat}&source=${encodeURIComponent(source)}${k}&sort=fetched&page=${p}`).catch(() => ({ items: [] }))
+  const k = kw ? `&q=${encodeURIComponent(kw)}${rb.after ? `&after=${encodeURIComponent(rb.after)}` : ''}${rb.before ? `&before=${encodeURIComponent(rb.before)}` : ''}` : '' // 后端 LIKE+时间范围，本库全量
+  const page = (source, p) => api(`/items?source=${encodeURIComponent(source)}${k}&sort=fetched&page=${p}&pageSize=50`).catch(() => ({ items: [] }))
   // 按源拉取：全局 sort=fetched 前 N 条会被财联社刷屏挤掉其它源（实测最近100条里财联社92条、金十仅2条）
   if (cfg.src) {
     const pages = await Promise.all([1, 2].map((p) => page(cfg.src, p)))
