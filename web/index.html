@@ -24,7 +24,29 @@
     height: 26px; padding: 0 8px; border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
     border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer;
   }
-  .bar label { display: flex; align-items: center; gap: 4px; opacity: .8; }
+  .bar input[type="number"] {
+    width: 46px; height: 26px; padding: 0 4px; text-align: center; font: inherit;
+    border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 6px;
+    background: transparent; color: inherit;
+  }
+  /* 段选：全部 | 重要 */
+  .seg { display: inline-flex; border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; height: 26px; padding: 0 10px; }
+  .seg button.on { background: #2f6feb; color: #fff; }
+  /* toggle 开关 */
+  .tgl { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; opacity: .9; }
+  .tgl input { display: none; }
+  .tgl .trk {
+    width: 30px; height: 17px; border-radius: 9px; position: relative; transition: background .15s;
+    background: color-mix(in srgb, CanvasText 30%, transparent);
+  }
+  .tgl .trk::after {
+    content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px;
+    border-radius: 50%; background: Canvas; transition: left .15s;
+    box-shadow: 0 1px 2px color-mix(in srgb, CanvasText 40%, transparent);
+  }
+  .tgl input:checked + .trk { background: #2f6feb; }
+  .tgl input:checked + .trk::after { left: 15px; }
   .fz { display: inline-flex; gap: 2px; }
   .fz button { width: 28px; padding: 0; }
   #list { font-size: calc(13px * var(--fz)); }
@@ -81,7 +103,11 @@
 <div class="bar">
   <b>快讯</b>
   <select id="srcSel" title="只看某个快讯源"><option value="">全部源</option></select>
-  <label><input type="checkbox" id="autoroll" checked> 自动滚动新条目</label>
+  <span class="seg" id="modeSeg">
+    <button data-mode="all" class="on">全部</button><button data-mode="imp">重要</button>
+  </span>
+  <input type="number" id="ivMin" min="1" max="60" step="1" title="刷新间隔（分钟，最小 1）" value="1"><span style="opacity:.55">分钟</span>
+  <label class="tgl" title="按左侧间隔自动刷新并滚到最新"><input type="checkbox" id="autoTgl" checked><span class="trk"></span>自动刷新</label>
   <span class="fz">
     <button id="fzDn" title="缩小字号">A−</button><button id="fzUp" title="放大字号">A＋</button>
   </span>
@@ -95,21 +121,11 @@
 <div id="cfg">
   <div class="panel">
     <h3>快讯设置</h3>
-    <h4>显示源</h4>
+    <h4>显示源（勾选=显示，短标可改）</h4>
     <div id="cfgSrcs"></div>
-    <h4>通用</h4>
-    <div class="row2"><span class="nm">刷新间隔</span>
-      <select id="cfgIv">
-        <option value="15000">15 秒</option><option value="30000">30 秒</option>
-        <option value="60000">60 秒</option><option value="0">手动</option>
-      </select>
-    </div>
-    <div class="row2"><span class="nm">重要标记（评分 ≥ 阈值高亮）</span>
-      <select id="cfgImp">
-        <option value="0">不高亮</option><option value="6">6 分</option>
-        <option value="7">7 分</option><option value="8" selected>8 分</option><option value="9">9 分</option>
-      </select>
-    </div>
+    <h4>重要</h4>
+    <div class="row2"><span class="nm">「重要」口径 = 源原生标记（财联社红电/金十加红/同花顺标红）；东财/见闻/新浪无原生标记不进重要视图</span></div>
+    <div class="row2"><label><input type="checkbox" id="cfgMark"> 重要条目加橙标</label></div>
     <div class="foot"><button id="cfgReset">恢复默认</button><button id="cfgOk" class="pri">完成</button></div>
   </div>
 </div>
@@ -134,15 +150,17 @@ const store = {
 }
 const cfg = {
   get fz() { return store.get('fz', 1) },
-  get src() { return store.get('src', '') },           // '' = 全部源
-  get hide() { return store.get('hide', {}) },          // {sourceId: true} = 隐藏
-  get alias() { return store.get('alias', {}) },        // {sourceId: '短标'}
-  get iv() { return store.get('iv', 30000) },           // 刷新间隔 ms，0=手动
-  get imp() { return store.get('imp', 8) },             // 高亮阈值，0=不高亮
+  get src() { return store.get('src', '') },            // '' = 全部源
+  get mode() { return store.get('mode', 'all') },       // 'all' | 'imp'
+  get auto() { return store.get('auto', true) },        // 自动刷新开关
+  get hide() { return store.get('hide', {}) },           // {sourceId: true} = 隐藏
+  get alias() { return store.get('alias', {}) },         // {sourceId: '短标'}
+  get ivMin() { return Math.max(1, store.get('ivMin', 1)) }, // 刷新间隔（分钟，≥1）
+  get mark() { return store.get('mark', true) },          // 重要条目橙标
 }
 const FZ = { MIN: 0.8, MAX: 1.6, STEP: 0.1 }
 
-let known = new Set(), firstLoad = true, timer = 0
+let known = new Set(), firstLoad = true, timer = 0, lastItems = []
 
 // 主题：?theme= 首帧 + rnd-theme postMessage 跟随主阅读器
 const q = new URLSearchParams(location.search)
@@ -158,7 +176,7 @@ const hm = (iso) => {
 }
 const txt = (it) => (it.title || '').trim() || (it.content || '').replace(/<[^>]+>/g, '').trim()
 const shortOf = (id) => cfg.alias[id] || SOURCES.find((s) => s.id === id)?.short || '快讯'
-const isImp = (it) => cfg.imp > 0 && (it.llmScore ?? it.score ?? 0) >= cfg.imp
+const isImp = (it) => it.state?.hot === true // 源原生重要标记（红电/加红/color=2）
 
 async function api(path) {
   const r = await fetch(`${API}${path}`, { credentials: 'same-origin' })
@@ -175,7 +193,10 @@ async function load() {
 }
 
 function render(items) {
-  const vis = items.filter((i) => !cfg.hide[i.sourceId] && (!cfg.src || i.sourceId === cfg.src))
+  const vis = items.filter((i) =>
+    !cfg.hide[i.sourceId]
+    && (!cfg.src || i.sourceId === cfg.src)
+    && (cfg.mode !== 'imp' || isImp(i)))
   const list = $('#list')
   list.textContent = ''
   if (!vis.length) { list.innerHTML = '<div class="empty">暂无快讯条目</div>'; return }
@@ -190,17 +211,16 @@ function render(items) {
     const a = document.createElement('a')
     a.href = it.link || '#'; a.target = '_blank'; a.rel = 'noopener noreferrer'
     a.textContent = txt(it) || '(无文本)'
-    if (isImp(it)) a.className = 'imp'
+    if (cfg.mark && isImp(it)) a.className = 'imp'
     b.appendChild(a); row.append(t, s, b); list.appendChild(row)
   }
   known = new Set(items.map((i) => i.id))
-  if (fresh.length && $('#autoroll').checked && !firstLoad) window.scrollTo({ top: 0 })
+  if (fresh.length && cfg.auto && !firstLoad) window.scrollTo({ top: 0 })
   const latest = vis[0]?.fetchedAt
   $('#meta').textContent = `${vis.length} 条 · 最新 ${latest ? hm(latest) : '—'} · ${new Date().toLocaleTimeString('zh-CN', { hour12: false })} 刷新`
   firstLoad = false
 }
 
-let lastItems = []
 async function tick() {
   try { lastItems = await load(); render(lastItems) }
   catch (e) { $('#meta').textContent = `加载失败：${e.message}` }
@@ -208,8 +228,18 @@ async function tick() {
 
 // ---- 控件 ----
 $('#btnNow').addEventListener('click', tick)
-$('#autoroll').addEventListener('change', (e) => store.set('roll', e.target.checked))
 $('#srcSel').addEventListener('change', (e) => { store.set('src', e.target.value); render(lastItems) })
+$('#modeSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-mode]'); if (!b) return
+  store.set('mode', b.dataset.mode)
+  document.querySelectorAll('#modeSeg button').forEach((x) => x.classList.toggle('on', x === b))
+  render(lastItems)
+})
+$('#ivMin').addEventListener('change', (e) => {
+  const v = Math.min(60, Math.max(1, Math.round(+e.target.value || 1)))
+  e.target.value = v; store.set('ivMin', v); armTimer()
+})
+$('#autoTgl').addEventListener('change', (e) => { store.set('auto', e.target.checked); armTimer() })
 const fzApply = () => document.documentElement.style.setProperty('--fz', cfg.fz)
 const fzStep = (d) => {
   const v = Math.min(FZ.MAX, Math.max(FZ.MIN, Math.round((cfg.fz + d * FZ.STEP) * 10) / 10))
@@ -229,8 +259,7 @@ function openCfg() {
       <input type="text" data-alias="${s.id}" value="${cfg.alias[s.id] || s.short}" maxlength="6">`
     box.appendChild(row)
   }
-  $('#cfgIv').value = String(cfg.iv)
-  $('#cfgImp').value = String(cfg.imp)
+  $('#cfgMark').checked = cfg.mark
   $('#cfg').classList.add('open')
 }
 $('#btnCfg').addEventListener('click', openCfg)
@@ -243,13 +272,12 @@ $('#cfgOk').addEventListener('click', () => {
     if (t.value.trim() && t.value.trim() !== def) alias[t.dataset.alias] = t.value.trim()
   })
   store.set('hide', hide); store.set('alias', alias)
-  const iv = Number($('#cfgIv').value); store.set('iv', iv); armTimer()
-  store.set('imp', Number($('#cfgImp').value))
+  store.set('mark', $('#cfgMark').checked)
   $('#cfg').classList.remove('open')
   render(lastItems)
 })
 $('#cfgReset').addEventListener('click', () => {
-  for (const k of ['hide', 'alias', 'iv', 'imp']) localStorage.removeItem(`kx.${k}`)
+  for (const k of ['hide', 'alias', 'mark']) localStorage.removeItem(`kx.${k}`)
   openCfg()
 })
 
@@ -259,9 +287,14 @@ for (const s of SOURCES) {
   $('#srcSel').appendChild(o)
 }
 $('#srcSel').value = cfg.src
-$('#autoroll').checked = store.get('roll', true)
+$('#ivMin').value = cfg.ivMin
+$('#autoTgl').checked = cfg.auto
+document.querySelectorAll('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.mode === cfg.mode))
 fzApply()
-function armTimer() { clearInterval(timer); if (cfg.iv > 0) timer = setInterval(() => { if (!document.hidden) tick() }, cfg.iv) }
+function armTimer() {
+  clearInterval(timer)
+  if (cfg.auto) timer = setInterval(() => { if (!document.hidden) tick() }, cfg.ivMin * 60000)
+}
 armTimer()
 tick()
 </script>

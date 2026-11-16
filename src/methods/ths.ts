@@ -42,6 +42,7 @@ export const ths = (bf: Bf): MethodHandler => async (src, ctx) => {
       link: i.url || `https://${DOMAIN}/`,
       content: stripTags(i.digest || i.title || ''),
       publishedAt: ctime ? new Date(ctime * 1000).toISOString() : new Date().toISOString(),
+      hot: i.color === 2, // 重要标红
     }
   }).filter((i) => i.id !== 'ths_')
 }

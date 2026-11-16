@@ -53,5 +53,6 @@ export const cls = (bf: Bf): MethodHandler => async (src, ctx) => {
     link: i.shareurl || `https://${DOMAIN}/detail/${i.id}`,
     content: stripTags(i.content),
     publishedAt: new Date(i.ctime * 1000).toISOString(),
+    hot: (i.level ?? 0) >= 1, // 加红/加级电报
   }))
 }

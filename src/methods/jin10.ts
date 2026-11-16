@@ -68,5 +68,6 @@ export const jin10 = (bf: Bf): MethodHandler => async (src, ctx) => {
     link: i.data?.source_link || `${SITE}/`,
     content: stripTags(i.data?.content ?? ''),
     publishedAt: cst(i.time),
+    hot: i.important === 1, // 加红
   }))
 }
