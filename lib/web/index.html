@@ -74,6 +74,8 @@
   .src.multi { background: color-mix(in srgb, #2f6feb 16%, transparent); color: #2f6feb; font-weight: 600; opacity: 1; cursor: pointer; max-width: 46%; overflow: hidden; text-overflow: ellipsis; }
   .src.multi:hover { background: color-mix(in srgb, #2f6feb 28%, transparent); }
   .src.multi .tot { display: inline-block; font-weight: 700; padding: 0 4px; margin-right: 4px; border-radius: 3px; background: #2f6feb; color: #fff; }
+  /* 展开态第 1 行的本源徽标：与 .tot 同色系的浅色 chip */
+  .src.multi .own { display: inline-block; font-weight: 600; padding: 0 4px; margin-right: 4px; border-radius: 3px; background: color-mix(in srgb, Canvas 22%, transparent); }
   /* 聚合簇展开后的各源子行 */
   .row.sub { padding-left: 58px; background: color-mix(in srgb, CanvasText 3%, transparent); }
   .row.sub .t, .row.sub .src { font-size: .8em; }
@@ -379,15 +381,29 @@ function render(clusters, markFresh = true) {
     const cnt = new Map()
     for (const m of c.items) if (!cfg.hide[m.sourceId]) cnt.set(m.sourceId, (cnt.get(m.sourceId) ?? 0) + 1)
     if (cnt.size > 1) {
-      const parts = [...cnt.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .map(([id, n]) => (n > 1 ? `${shortOf(id)}×${n}` : shortOf(id)))
       const total = [...cnt.values()].reduce((a, b) => a + b, 0)
       s.className = 'src multi'
       const tot = document.createElement('span')
       tot.className = 'tot'; tot.textContent = `${total}条`
-      s.appendChild(tot)
-      s.appendChild(document.createTextNode(`${parts.join(' ')}${expanded.has(rep.id) ? ' ▾' : ' ▸'}`))
-      s.title = `共 ${total} 条：${parts.join('、')} —— 点击展开各源报道`
+      const isOpen = expanded.has(rep.id)
+      if (isOpen) {
+        // 展开态第 1 行：计数收起钮 + 本源徽标——点任一收起；其余成员行各自带源标
+        // 本源被「显示源」隐藏时不显示（防泄漏隐藏源名）
+        const chips = [tot]
+        if (!cfg.hide[rep.sourceId]) {
+          const own = document.createElement('span')
+          own.className = 'own'; own.textContent = shortOf(rep.sourceId)
+          chips.push(own)
+        }
+        s.append(...chips, document.createTextNode(' ▾'))
+        s.title = `共 ${total} 条 —— 点击收起`
+      } else {
+        const parts = [...cnt.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .map(([id, n]) => (n > 1 ? `${shortOf(id)}×${n}` : shortOf(id)))
+        s.appendChild(tot)
+        s.appendChild(document.createTextNode(`${parts.join(' ')} ▸`))
+        s.title = `共 ${total} 条：${parts.join('、')} —— 点击展开各源报道`
+      }
       s.addEventListener('click', (e) => {
         e.stopPropagation()
         const k = rep.id
