@@ -45,7 +45,7 @@ export declare class KxDb {
     /** 批量入库；返回真正新插入的行（INSERT OR IGNORE changes>0）——去重+「新条目」判定一体 */
     insert(srcId: string, title: string, items: RawItem[]): StoredItem[];
     private prune;
-    /** 列表查询：source 精确 / q LIKE(title+content) / after+before fetchedAt / 排序 / 分页 */
+    /** 列表查询：source 精确 / q LIKE(title+content) / after+before 按 COALESCE(publishedAt,fetchedAt) / 排序 / 分页 */
     query(o: ItemQuery): {
         total: number;
         items: StoredItem[];

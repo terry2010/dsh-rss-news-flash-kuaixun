@@ -39,8 +39,8 @@ export interface StoredItem {
 export interface ItemQuery {
   source?: string
   q?: string
-  after?: string   // ISO，fetchedAt 下界（含）——与主 /api/items 同口径
-  before?: string  // ISO，fetchedAt 上界（含）
+  after?: string   // ISO，COALESCE(publishedAt,fetchedAt) 下界（含）
+  before?: string  // ISO，COALESCE(publishedAt,fetchedAt) 上界（含）
   sort?: string    // 'fetched' | 其他=publishedAt（缺省回退 fetchedAt）
   page?: number
   pageSize?: number
@@ -120,7 +120,7 @@ export class KxDb {
       (SELECT id FROM items ORDER BY fetchedAt DESC, rowid DESC LIMIT -1 OFFSET ?)`).run(MAX_ITEMS)
   }
 
-  /** 列表查询：source 精确 / q LIKE(title+content) / after+before fetchedAt / 排序 / 分页 */
+  /** 列表查询：source 精确 / q LIKE(title+content) / after+before 按 COALESCE(publishedAt,fetchedAt) / 排序 / 分页 */
   query(o: ItemQuery): { total: number; items: StoredItem[] } {
     const where: string[] = []
     const args: (string | number)[] = []
@@ -130,8 +130,10 @@ export class KxDb {
       where.push('(title LIKE ? OR content LIKE ?)')
       args.push(like, like)
     }
-    if (o.after) { where.push('fetchedAt>=?'); args.push(o.after) }
-    if (o.before) { where.push('fetchedAt<=?'); args.push(o.before) }
+    // 快讯 publishedAt 是源原生时间戳，比 fetchedAt 更适合做"哪天的新闻"过滤
+    const timeCol = 'COALESCE(publishedAt, fetchedAt)'
+    if (o.after) { where.push(`${timeCol}>=?`); args.push(o.after) }
+    if (o.before) { where.push(`${timeCol}<=?`); args.push(o.before) }
     const cond = where.length ? `WHERE ${where.join(' AND ')}` : ''
     const sortCol = o.sort === 'fetched' ? 'fetchedAt' : 'COALESCE(publishedAt, fetchedAt)'
     const total = (this.db.prepare(`SELECT COUNT(*) n FROM items ${cond}`).get(...args) as { n: number }).n

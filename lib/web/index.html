@@ -256,7 +256,8 @@ const uniqById = (items) => {
   for (const it of items) m.set(it.id, it)
   return [...m.values()]
 }
-const byFetchedDesc = (a, b) => String(b.fetchedAt || '').localeCompare(String(a.fetchedAt || ''))
+// 展示排序按事件时间 publishedAt（缺失回退 fetchedAt）——回补进库的历史条目沉到真实时间位，而不是按入库时间顶到最上面
+const byTimeDesc = (a, b) => String(b.publishedAt || b.fetchedAt || '').localeCompare(String(a.publishedAt || a.fetchedAt || ''))
 
 // ---- 跨源聚类：标题归一化后 bigram Dice 相似度，并查集合并同一事件 ----
 // 六源同一新闻经常重复上榜——聚成一行，源徽标显示「首发源×N」。
@@ -291,11 +292,11 @@ function clusterize(items) {
   })
   const clusters = [...groups.values()].map((members) => {
     members.sort((a, b) => Number(isImp(b)) - Number(isImp(a))
-      || txt(b).length - txt(a).length || byFetchedDesc(a, b))
+      || txt(b).length - txt(a).length || byTimeDesc(a, b))
     const srcs = [...new Set(members.map((m) => m.sourceId))]
     return { items: members, rep: members[0], srcs, hot: members.some(isImp) }
   })
-  clusters.sort((a, b) => byFetchedDesc(a.rep, b.rep))
+  clusters.sort((a, b) => byTimeDesc(a.rep, b.rep))
   return clusters
 }
 
@@ -322,14 +323,14 @@ function rangeBounds() {
 async function load() {
   const rb = kw ? rangeBounds() : {}
   const k = kw ? `&q=${encodeURIComponent(kw)}${rb.after ? `&after=${encodeURIComponent(rb.after)}` : ''}${rb.before ? `&before=${encodeURIComponent(rb.before)}` : ''}` : '' // 后端 LIKE+时间范围，本库全量
-  const page = (source, p) => api(`/items?source=${encodeURIComponent(source)}${k}&sort=fetched&page=${p}&pageSize=50`).catch(() => ({ items: [] }))
+  const page = (source, p) => api(`/items?source=${encodeURIComponent(source)}${k}&sort=published&page=${p}&pageSize=50`).catch(() => ({ items: [] }))
   // 按源拉取：全局 sort=fetched 前 N 条会被财联社刷屏挤掉其它源（实测最近100条里财联社92条、金十仅2条）
   if (cfg.src) {
     const pages = await Promise.all([1, 2].map((p) => page(cfg.src, p)))
-    return clusterize(uniqById(pages.flatMap((x) => x.items || [])).sort(byFetchedDesc).slice(0, 150))
+    return clusterize(uniqById(pages.flatMap((x) => x.items || [])).sort(byTimeDesc).slice(0, 150))
   }
   const pages = await Promise.all(SOURCES.map((s) => page(s.id, 1)))
-  return clusterize(uniqById(pages.flatMap((x) => x.items || [])).sort(byFetchedDesc))
+  return clusterize(uniqById(pages.flatMap((x) => x.items || [])).sort(byTimeDesc))
 }
 
 // visSrcs：簇内未被「显示源」隐藏的源集合——空=整簇隐藏；multi 计数按它算
@@ -403,7 +404,7 @@ function render(clusters, markFresh = true) {
     addBody(rep, b)
     // 展开态：簇内其余成员各一行（rep 行本身就是代表，不重复列）
     if (expanded.has(rep.id)) {
-      for (const m of c.items.filter((x) => x !== rep && !cfg.hide[x.sourceId]).sort(byFetchedDesc)) {
+      for (const m of c.items.filter((x) => x !== rep && !cfg.hide[x.sourceId]).sort(byTimeDesc)) {
         const sr = document.createElement('div'); sr.className = 'row sub'
         const st = document.createElement('span'); st.className = 't'; st.textContent = hm(m.publishedAt || m.fetchedAt)
         const ss = document.createElement('span'); ss.className = 'src'; ss.textContent = shortOf(m.sourceId)
@@ -422,7 +423,7 @@ function render(clusters, markFresh = true) {
   pending.forEach(([bd], i) => { bd.style.paddingLeft = `${xs[i]}px` })
   markKnown() // 并集：切源/筛选不把其它源已见条目标成"新"
   if (fresh.length && cfg.auto && markFresh && !firstLoad) window.scrollTo({ top: 0 })
-  const latest = vis[0]?.rep?.fetchedAt
+  const latest = vis[0]?.rep?.publishedAt || vis[0]?.rep?.fetchedAt
   const itemCount = vis.reduce((n, c) => n + c.items.length, 0)
   $('#meta').textContent = `${vis.length} 组 · ${itemCount} 条${kw ? ` · "${kw}"` : ''} · 最新 ${latest ? hm(latest) : '—'} · ${new Date().toLocaleTimeString('zh-CN', { hour12: false })} 刷新`
 }

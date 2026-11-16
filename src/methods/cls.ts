@@ -1,7 +1,9 @@
 /**
  * 财联社电报：GET /v1/roll/get_roll_list，参数签名 = md5(sha1(排序 k=v&...))。
  * 接口/字段见 docs/SOURCES-FLASH-NEWS.md §1.1（实测 errno:0）。
- * 增量：kv 'last' 记已见最小 ctime 翻页水位。
+ * 增量注意：last_time 是「向前翻页」游标（返回 last_time 之前的 50 条历史），
+ * 不是正向水位——rt=1&last_time=<旧值> 会一路回溯历史。rt=2 实测恒返回最新页，
+ * 新条目靠 items.id（cls_<id>）由 db INSERT OR IGNORE 去重。
  */
 
 import type { MethodHandler, RawItem } from 'dsh-rss-news-daily'
@@ -24,9 +26,9 @@ interface ClsItem {
 
 export const cls = (bf: Bf): MethodHandler => async (src, ctx) => {
   const p: Record<string, string | number> = {
-    refresh_type: 1,
+    refresh_type: 2, // 2=刷新最新页；1 会把 last_time 当历史翻页游标向回溯
     rn: 50,
-    last_time: Number(ctx.kv.get('last') ?? 0),
+    last_time: 0,
     os: 'web',
     sv: '8.7.9',
     app: 'CailianpressWeb',
@@ -45,7 +47,6 @@ export const cls = (bf: Bf): MethodHandler => async (src, ctx) => {
   const data = JSON.parse(doc.body) as { errno?: number; data?: { roll_data?: ClsItem[] } }
   if (data.errno !== 0) throw new Error(`cls errno ${data.errno}`)
   const items = data.data?.roll_data ?? []
-  if (items.length) ctx.kv.set('last', String(Math.min(...items.map((i) => i.ctime))))
   markAuth(bf(), DOMAIN, false)
   return items.filter((i) => !i.is_ad).map((i): RawItem => ({
     id: `cls_${i.id}`,
