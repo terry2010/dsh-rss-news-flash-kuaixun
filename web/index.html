@@ -102,6 +102,20 @@
     border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 6px;
     background: transparent; color: inherit;
   }
+  /* 关键字 tag 编辑区 */
+  .ovl .tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; min-height: 26px; }
+  .ovl .tag {
+    display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 3px 0 9px;
+    border-radius: 12px; font-size: 12px; cursor: pointer; user-select: none;
+    background: color-mix(in srgb, #2f6feb 13%, transparent);
+    border: 1px solid color-mix(in srgb, #2f6feb 35%, transparent);
+  }
+  .ovl .tag:hover { background: color-mix(in srgb, #2f6feb 22%, transparent); }
+  .ovl .tag .x {
+    border: 0; background: none; cursor: pointer; padding: 0 4px; font-size: 13px;
+    line-height: 1; color: inherit; opacity: .55; border-radius: 50%;
+  }
+  .ovl .tag .x:hover { opacity: 1; background: color-mix(in srgb, CanvasText 15%, transparent); }
   .ovl select {
     height: 26px; font: inherit; background: transparent; color: inherit;
     border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 5px;
@@ -157,8 +171,9 @@
 <div id="alert" class="ovl">
   <div class="panel">
     <h3>快讯提醒</h3>
-    <div class="hint">新抓到的快讯命中关键字（标题或正文）时，推送桌面通知——与时段快报同一通道。空格/逗号分隔多个关键字；留空 = 关闭提醒。</div>
-    <input id="alertKw" class="kw" type="text" placeholder="例如：降息 美联储 楼市" autocomplete="off">
+    <div class="hint">新抓到的快讯命中关键字（标题或正文）时，推送桌面通知——与时段快报同一通道。回车上屏；点击 tag 可修改，× 删除；无关键字 = 关闭提醒。</div>
+    <div class="tags" id="alertTags"></div>
+    <input id="alertKw" class="kw" type="text" placeholder="输入关键字后回车" autocomplete="off">
     <div class="hint" id="alertState"></div>
     <div class="foot"><button id="alertReset">清空</button><button id="alertOk" class="pri">完成</button></div>
   </div>
@@ -372,28 +387,70 @@ async function kxApi(path, opts) {
   return r.json()
 }
 const alertTitle = (n) => (n ? `提醒（${n} 个关键字）` : '关键字提醒：新快讯命中即推送桌面通知')
+
+// ---- tag 式关键字编辑 ----
+let alertTags = []
+const SEP = /[\s,，、;；]+/
+const renderAlertTags = () => {
+  const box = $('#alertTags'); box.textContent = ''
+  alertTags.forEach((kw, i) => {
+    const tag = document.createElement('span'); tag.className = 'tag'; tag.title = '点击修改'
+    const nm = document.createElement('span'); nm.textContent = kw
+    const x = document.createElement('button'); x.className = 'x'; x.type = 'button'; x.textContent = '×'; x.title = '删除'
+    x.addEventListener('click', (e) => { e.stopPropagation(); alertTags.splice(i, 1); renderAlertTags() })
+    tag.append(nm, x)
+    tag.addEventListener('click', () => { // 点击 tag → 词回填输入框（删 tag，改完回车重新上屏）
+      $('#alertKw').value = kw
+      alertTags.splice(i, 1)
+      renderAlertTags()
+      $('#alertKw').focus()
+    })
+    box.appendChild(tag)
+  })
+}
+const commitAlertKw = () => {
+  const parts = $('#alertKw').value.split(SEP).map((s) => s.trim().slice(0, 30)).filter(Boolean)
+  if (!parts.length) return
+  const have = new Set(alertTags.map((k) => k.toLowerCase()))
+  for (const p of parts) { const k = p.toLowerCase(); if (!have.has(k) && alertTags.length < 20) { alertTags.push(p); have.add(k) } }
+  $('#alertKw').value = ''
+  renderAlertTags()
+}
+$('#alertKw').addEventListener('keydown', (e) => {
+  if (e.isComposing) return // IME 选词中不抢键（空格/标点都可能是候选确认）
+  if (e.key === 'Enter' || (e.key.length === 1 && SEP.test(e.key))) { e.preventDefault(); commitAlertKw() }
+  else if (e.key === 'Backspace' && !e.target.value && alertTags.length) { // 空输入退格 → 末位 tag 回填
+    $('#alertKw').value = alertTags.pop(); renderAlertTags()
+  }
+})
+$('#alertKw').addEventListener('paste', () => setTimeout(commitAlertKw, 0)) // 粘贴整串按分隔符拆成多个 tag
+
 async function openAlert() {
   $('#alert').classList.add('open')
   $('#alertState').textContent = '载入…'
   try {
     const j = await kxApi('/alerts')
-    $('#alertKw').value = (j.keywords || []).join(' ')
-    $('#alertState').textContent = j.keywords?.length ? `当前 ${j.keywords.length} 个关键字` : '未设置（提醒关闭）'
+    alertTags = [...(j.keywords || [])]
+    $('#alertKw').value = ''
+    renderAlertTags()
+    $('#alertState').textContent = alertTags.length ? `当前 ${alertTags.length} 个关键字` : '未设置（提醒关闭）'
   } catch { $('#alertState').textContent = '读取失败——插件可能未加载' }
 }
 $('#btnAlert').addEventListener('click', openAlert)
 $('#alert').addEventListener('click', (e) => { if (e.target === $('#alert')) $('#alert').classList.remove('open') })
 $('#alertOk').addEventListener('click', async () => {
+  commitAlertKw() // 输入框里还没上屏的词一并收进来
   try {
     const j = await kxApi('/alerts', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ keywords: $('#alertKw').value }),
+      body: JSON.stringify({ keywords: alertTags }),
     })
+    alertTags = [...(j.keywords || [])]
     $('#alert').classList.remove('open')
-    $('#btnAlert').title = alertTitle(j.keywords?.length || 0)
+    $('#btnAlert').title = alertTitle(alertTags.length)
   } catch { $('#alertState').textContent = '保存失败' }
 })
-$('#alertReset').addEventListener('click', () => { $('#alertKw').value = '' })
+$('#alertReset').addEventListener('click', () => { alertTags = []; $('#alertKw').value = ''; renderAlertTags() })
 
 // ---- 初始化 ----
 for (const s of SOURCES) {
