@@ -61,7 +61,7 @@
   .fz button { width: 28px; padding: 0; }
   #list { font-size: calc(13px * var(--fz)); }
   .row {
-    display: flex; gap: 10px; padding: 5px 12px; align-items: baseline;
+    display: flex; gap: 10px; padding: 5px 12px; align-items: baseline; position: relative;
     border-bottom: 1px solid color-mix(in srgb, CanvasText 8%, transparent);
   }
   .row.fresh { animation: flash 2.4s ease-out; }
@@ -81,6 +81,14 @@
   .txt a { color: inherit; text-decoration: none; }
   .txt a:hover { text-decoration: underline; }
   .imp { color: #d45500; font-weight: 600; }
+  .more { margin-left: 6px; font-size: .85em; color: #2f6feb; cursor: pointer; white-space: nowrap; }
+  .more:hover { text-decoration: underline; }
+  /* 行内「▸正文」展开的正文块：paddingLeft 由 JS 对齐到标题列 */
+  .body {
+    padding: 2px 12px 8px 0; color: color-mix(in srgb, CanvasText 68%, transparent);
+    font-size: .85em; line-height: 1.55; white-space: pre-wrap; word-break: break-word;
+    max-height: 320px; overflow-y: auto;
+  }
   .empty, .err { padding: 30px; text-align: center; opacity: .6; }
   /* ---- 弹层（设置/提醒共用 .ovl） ---- */
   .ovl {
@@ -232,6 +240,8 @@ const hm = (iso) => {
   return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}` // 统一 M/D HH:mm——跨零点不混排
 }
 const txt = (it) => (it.title || '').trim() || (it.content || '').replace(/<[^>]+>/g, '').trim()
+const decodeEnt = (s) => s.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&amp;/g, '&')
 const shortOf = (id) => cfg.alias[id] || SOURCES.find((s) => s.id === id)?.short || '快讯'
 const isImp = (it) => it.state?.hot === true // 源原生重要标记（红电/加红/color=2）
 
@@ -338,6 +348,23 @@ function render(clusters, markFresh = true) {
   const markKnown = () => { for (const c of clusters) for (const m of c.items) known.add(m.id); firstLoad = false }
   if (!vis.length) { list.innerHTML = '<div class="empty">暂无快讯条目</div>'; markKnown(); return }
   const fresh = []
+  const pending = []
+  // content 明显长于标题时给「▸正文」开关；正文块插到行后，渲染完统一对齐标题列
+  const addBody = (m, box) => {
+    const full = decodeEnt((m.content || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+      .replace(/\n{3,}/g, '\n\n').trim())
+    if (full.length <= txt(m).length + 80) return
+    const bd = document.createElement('div'); bd.className = 'body'; bd.hidden = true; bd.textContent = full
+    const tg = document.createElement('span'); tg.className = 'more'; tg.textContent = '▸ 正文'
+    tg.addEventListener('click', (e) => {
+      e.stopPropagation()
+      bd.hidden = !bd.hidden
+      tg.textContent = bd.hidden ? '▸ 正文' : '▾ 收起'
+    })
+    box.closest('.row').insertAdjacentElement('afterend', bd)
+    box.appendChild(tg)
+    pending.push([bd, box])
+  }
   for (const c of vis) {
     const rep = c.rep, srcs = visSrcs(c)
     const row = document.createElement('div')
@@ -373,6 +400,7 @@ function render(clusters, markFresh = true) {
     a.textContent = txt(rep) || '(无文本)'
     if (cfg.mark && c.hot) a.className = 'imp'
     b.appendChild(a); row.append(t, s, b); list.appendChild(row)
+    addBody(rep, b)
     // 展开态：簇内其余成员各一行（rep 行本身就是代表，不重复列）
     if (expanded.has(rep.id)) {
       for (const m of c.items.filter((x) => x !== rep && !cfg.hide[x.sourceId]).sort(byFetchedDesc)) {
@@ -385,9 +413,13 @@ function render(clusters, markFresh = true) {
         sa.textContent = txt(m) || '(无文本)'
         if (cfg.mark && isImp(m)) sa.className = 'imp'
         sb.appendChild(sa); sr.append(st, ss, sb); list.appendChild(sr)
+        addBody(m, sb)
       }
     }
   }
+  // 正文块缩进 = 标题列 x 坐标（.txt 相对 .row 的 offsetLeft）
+  const xs = pending.map(([, box]) => box.offsetLeft)
+  pending.forEach(([bd], i) => { bd.style.paddingLeft = `${xs[i]}px` })
   markKnown() // 并集：切源/筛选不把其它源已见条目标成"新"
   if (fresh.length && cfg.auto && markFresh && !firstLoad) window.scrollTo({ top: 0 })
   const latest = vis[0]?.rep?.fetchedAt
