@@ -170,9 +170,9 @@ window.addEventListener('message', (e) => {
 })
 
 const hm = (iso) => {
-  const d = new Date(iso), now = new Date()
-  const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  return d.toDateString() === now.toDateString() ? t : `${d.getMonth() + 1}/${d.getDate()} ${t}`
+  const d = new Date(iso)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}` // 统一 M/D HH:mm——跨零点不混排
 }
 const txt = (it) => (it.title || '').trim() || (it.content || '').replace(/<[^>]+>/g, '').trim()
 const shortOf = (id) => cfg.alias[id] || SOURCES.find((s) => s.id === id)?.short || '快讯'
