@@ -29,6 +29,16 @@
     border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 6px;
     background: transparent; color: inherit;
   }
+  .bar input[type="search"] {
+    width: 120px; height: 26px; padding: 0 8px; font: inherit;
+    border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 6px;
+    background: transparent; color: inherit;
+  }
+  .bar input[type="date"] {
+    height: 26px; padding: 0 4px; font: inherit; color-scheme: inherit;
+    border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 6px;
+    background: transparent; color: inherit;
+  }
   /* 段选：全部 | 重要 */
   .seg { display: inline-flex; border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 6px; overflow: hidden; }
   .seg button { border: 0; border-radius: 0; height: 26px; padding: 0 10px; }
@@ -103,6 +113,13 @@
 <div class="bar">
   <b>快讯</b>
   <select id="srcSel" title="只看某个快讯源"><option value="">全部源</option></select>
+  <input id="kw" type="search" placeholder="搜索快讯…" title="搜索标题/摘要（库内全量，Esc 清空）" autocomplete="off">
+  <select id="range" title="搜索时间范围（仅搜索时生效）">
+    <option value="today">今天</option><option value="yesterday">昨天</option>
+    <option value="7d">近7天</option><option value="30d">近30天</option>
+    <option value="all">全部</option><option value="custom">自定义</option>
+  </select>
+  <input type="date" id="from" hidden><input type="date" id="to" hidden>
   <span class="seg" id="modeSeg">
     <button data-mode="all" class="on">全部</button><button data-mode="imp">重要</button>
   </span>
@@ -160,7 +177,8 @@ const cfg = {
 }
 const FZ = { MIN: 0.8, MAX: 1.6, STEP: 0.1 }
 
-let known = new Set(), firstLoad = true, timer = 0, lastItems = []
+let known = new Set(), firstLoad = true, timer = 0, lastItems = [], kw = '', kwTimer = 0
+let range = store.get('range', 'today'), customFrom = store.get('cf', ''), customTo = store.get('ct', '')
 
 // 主题：?theme= 首帧 + rnd-theme postMessage 跟随主阅读器
 const q = new URLSearchParams(location.search)
@@ -191,16 +209,37 @@ const uniqById = (items) => {
 }
 const byFetchedDesc = (a, b) => String(b.fetchedAt || '').localeCompare(String(a.fetchedAt || ''))
 
+const DAY = 86400e3
+const dayStart = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+const iso = (d) => d.toISOString()
+// 搜索时间范围 → after/before（ISO，含端点）；仅 kw 非空时由 load() 使用
+function rangeBounds() {
+  const today = dayStart(new Date()), endToday = new Date(today.getTime() + DAY - 1)
+  const last = (n) => ({ after: iso(new Date(today.getTime() - (n - 1) * DAY)), before: iso(endToday) })
+  if (range === 'yesterday') return { after: iso(new Date(today.getTime() - DAY)), before: iso(new Date(today.getTime() - 1)) }
+  if (range === '7d') return last(7)
+  if (range === '30d') return last(30)
+  if (range === 'all') return {}
+  if (range === 'custom') {
+    const out = {}
+    if (customFrom) out.after = iso(new Date(`${customFrom}T00:00:00`))
+    if (customTo) out.before = iso(new Date(`${customTo}T23:59:59.999`))
+    return out
+  }
+  return { after: iso(today), before: iso(endToday) } // today 默认
+}
+
 async function load() {
   const cat = encodeURIComponent('快讯')
+  const rb = kw ? rangeBounds() : {}
+  const k = kw ? `&q=${encodeURIComponent(kw)}${rb.after ? `&after=${encodeURIComponent(rb.after)}` : ''}${rb.before ? `&before=${encodeURIComponent(rb.before)}` : ''}` : '' // 后端 FTS/LIKE+时间范围，库内全量不只当前页
+  const page = (source, p) => api(`/items?category=${cat}&source=${encodeURIComponent(source)}${k}&sort=fetched&page=${p}`).catch(() => ({ items: [] }))
   // 按源拉取：全局 sort=fetched 前 N 条会被财联社刷屏挤掉其它源（实测最近100条里财联社92条、金十仅2条）
   if (cfg.src) {
-    const pages = await Promise.all([1, 2].map((p) =>
-      api(`/items?category=${cat}&source=${encodeURIComponent(cfg.src)}&sort=fetched&page=${p}`).catch(() => ({ items: [] }))))
+    const pages = await Promise.all([1, 2].map((p) => page(cfg.src, p)))
     return uniqById(pages.flatMap((x) => x.items || [])).sort(byFetchedDesc).slice(0, 150)
   }
-  const pages = await Promise.all(SOURCES.map((s) =>
-    api(`/items?category=${cat}&source=${encodeURIComponent(s.id)}&sort=fetched&page=1`).catch(() => ({ items: [] }))))
+  const pages = await Promise.all(SOURCES.map((s) => page(s.id, 1)))
   return uniqById(pages.flatMap((x) => x.items || [])).sort(byFetchedDesc)
 }
 
@@ -229,7 +268,7 @@ function render(items, markFresh = true) {
   for (const it of items) known.add(it.id) // 并集：切源/筛选不把其它源已见条目标成"新"
   if (fresh.length && cfg.auto && markFresh && !firstLoad) window.scrollTo({ top: 0 })
   const latest = vis[0]?.fetchedAt
-  $('#meta').textContent = `${vis.length} 条 · 最新 ${latest ? hm(latest) : '—'} · ${new Date().toLocaleTimeString('zh-CN', { hour12: false })} 刷新`
+  $('#meta').textContent = `${vis.length} 条${kw ? ` · "${kw}"` : ''} · 最新 ${latest ? hm(latest) : '—'} · ${new Date().toLocaleTimeString('zh-CN', { hour12: false })} 刷新`
   firstLoad = false
 }
 
@@ -241,6 +280,19 @@ async function tick(markFresh = true) {
 // ---- 控件 ----
 $('#btnNow').addEventListener('click', () => tick())
 $('#srcSel').addEventListener('change', (e) => { store.set('src', e.target.value); tick(false) })
+// 搜索：防抖 300ms 走后端；Esc 清空。range 只在 kw 非空时参与 load()
+$('#kw').addEventListener('input', (e) => {
+  clearTimeout(kwTimer)
+  kwTimer = setTimeout(() => { kw = e.target.value.trim(); tick(false) }, 300)
+})
+$('#kw').addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return
+  e.target.value = ''; kw = ''; clearTimeout(kwTimer); tick(false)
+})
+const applyRangeUI = () => { $('#from').hidden = $('#to').hidden = range !== 'custom' }
+$('#range').addEventListener('change', (e) => { range = e.target.value; store.set('range', range); applyRangeUI(); if (kw) tick(false) })
+$('#from').addEventListener('change', (e) => { customFrom = e.target.value; store.set('cf', customFrom); if (kw) tick(false) })
+$('#to').addEventListener('change', (e) => { customTo = e.target.value; store.set('ct', customTo); if (kw) tick(false) })
 $('#modeSeg').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-mode]'); if (!b) return
   store.set('mode', b.dataset.mode)
@@ -299,6 +351,7 @@ for (const s of SOURCES) {
   $('#srcSel').appendChild(o)
 }
 $('#srcSel').value = cfg.src
+$('#range').value = range; $('#from').value = customFrom; $('#to').value = customTo; applyRangeUI()
 $('#ivMin').value = cfg.ivMin
 $('#autoTgl').checked = cfg.auto
 document.querySelectorAll('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.mode === cfg.mode))
