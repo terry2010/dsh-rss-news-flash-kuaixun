@@ -76,37 +76,43 @@
   .txt a:hover { text-decoration: underline; }
   .imp { color: #d45500; font-weight: 600; }
   .empty, .err { padding: 30px; text-align: center; opacity: .6; }
-  /* ---- 设置弹层 ---- */
-  #cfg {
+  /* ---- 弹层（设置/提醒共用 .ovl） ---- */
+  .ovl {
     position: fixed; inset: 0; z-index: 10; display: none;
     background: color-mix(in srgb, CanvasText 30%, transparent);
   }
-  #cfg.open { display: flex; align-items: flex-start; justify-content: center; padding-top: 8vh; }
-  #cfg .panel {
+  .ovl.open { display: flex; align-items: flex-start; justify-content: center; padding-top: 8vh; }
+  .ovl .panel {
     width: min(420px, 92vw); max-height: 76vh; overflow: auto; padding: 16px 18px;
     background: Canvas; border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
     border-radius: 10px; box-shadow: 0 8px 30px color-mix(in srgb, CanvasText 35%, transparent);
     font-size: 13px;
   }
-  #cfg h3 { margin: 0 0 10px; font-size: 14px; }
-  #cfg h4 { margin: 14px 0 6px; font-size: 12px; opacity: .7; font-weight: 600; }
-  #cfg .row2 { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
-  #cfg .row2 .nm { flex: 1; }
-  #cfg .row2 input[type="text"] {
+  .ovl h3 { margin: 0 0 10px; font-size: 14px; }
+  .ovl h4 { margin: 14px 0 6px; font-size: 12px; opacity: .7; font-weight: 600; }
+  .ovl .row2 { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .ovl .row2 .nm { flex: 1; }
+  .ovl .row2 input[type="text"] {
     width: 90px; height: 24px; padding: 0 6px; font: inherit;
     border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 5px;
     background: transparent; color: inherit;
   }
-  #cfg select {
+  .ovl input.kw {
+    width: 100%; height: 30px; padding: 0 8px; font: inherit; margin: 4px 0 2px;
+    border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 6px;
+    background: transparent; color: inherit;
+  }
+  .ovl select {
     height: 26px; font: inherit; background: transparent; color: inherit;
     border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 5px;
   }
-  #cfg .foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
-  #cfg .foot button {
+  .ovl .foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .ovl .foot button {
     height: 28px; padding: 0 14px; border-radius: 6px; font: inherit; cursor: pointer;
     border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); background: transparent; color: inherit;
   }
-  #cfg .foot .pri { background: #2f6feb; border-color: #2f6feb; color: #fff; }
+  .ovl .foot .pri { background: #2f6feb; border-color: #2f6feb; color: #fff; }
+  .ovl .hint { font-size: 12px; opacity: .6; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -130,12 +136,13 @@
   </span>
   <span class="meta" id="meta">载入…</span>
   <span style="flex:1"></span>
+  <button id="btnAlert" title="关键字提醒：新快讯命中即推送桌面通知">提醒</button>
   <button id="btnCfg" title="快讯显示设置">设置</button>
   <button id="btnNow">刷新</button>
 </div>
 <div id="list"></div>
 
-<div id="cfg">
+<div id="cfg" class="ovl">
   <div class="panel">
     <h3>快讯设置</h3>
     <h4>显示源（勾选=显示，短标可改）</h4>
@@ -144,6 +151,16 @@
     <div class="row2"><span class="nm">「重要」口径 = 源原生标记（财联社红电/金十加红/同花顺标红）；东财/见闻/新浪无原生标记不进重要视图</span></div>
     <div class="row2"><label><input type="checkbox" id="cfgMark"> 重要条目加橙标</label></div>
     <div class="foot"><button id="cfgReset">恢复默认</button><button id="cfgOk" class="pri">完成</button></div>
+  </div>
+</div>
+
+<div id="alert" class="ovl">
+  <div class="panel">
+    <h3>快讯提醒</h3>
+    <div class="hint">新抓到的快讯命中关键字（标题或正文）时，推送桌面通知——与时段快报同一通道。空格/逗号分隔多个关键字；留空 = 关闭提醒。</div>
+    <input id="alertKw" class="kw" type="text" placeholder="例如：降息 美联储 楼市" autocomplete="off">
+    <div class="hint" id="alertState"></div>
+    <div class="foot"><button id="alertReset">清空</button><button id="alertOk" class="pri">完成</button></div>
   </div>
 </div>
 
@@ -344,6 +361,39 @@ $('#cfgReset').addEventListener('click', () => {
   for (const k of ['hide', 'alias', 'mark']) localStorage.removeItem(`kx.${k}`)
   openCfg()
 })
+
+// ---- 提醒弹层 ----
+// 关键字存服务端 alerts.json（/dsh-news-kuaixun/api/alerts）——命中匹配发生在
+// 插件进程的抓取 handler 里，localStorage 页面够不到，必须走 API。
+const KXAPI = '/dsh-news-kuaixun/api'
+async function kxApi(path, opts) {
+  const r = await fetch(`${KXAPI}${path}`, { credentials: 'same-origin', ...opts })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json()
+}
+const alertTitle = (n) => (n ? `提醒（${n} 个关键字）` : '关键字提醒：新快讯命中即推送桌面通知')
+async function openAlert() {
+  $('#alert').classList.add('open')
+  $('#alertState').textContent = '载入…'
+  try {
+    const j = await kxApi('/alerts')
+    $('#alertKw').value = (j.keywords || []).join(' ')
+    $('#alertState').textContent = j.keywords?.length ? `当前 ${j.keywords.length} 个关键字` : '未设置（提醒关闭）'
+  } catch { $('#alertState').textContent = '读取失败——插件可能未加载' }
+}
+$('#btnAlert').addEventListener('click', openAlert)
+$('#alert').addEventListener('click', (e) => { if (e.target === $('#alert')) $('#alert').classList.remove('open') })
+$('#alertOk').addEventListener('click', async () => {
+  try {
+    const j = await kxApi('/alerts', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ keywords: $('#alertKw').value }),
+    })
+    $('#alert').classList.remove('open')
+    $('#btnAlert').title = alertTitle(j.keywords?.length || 0)
+  } catch { $('#alertState').textContent = '保存失败' }
+})
+$('#alertReset').addEventListener('click', () => { $('#alertKw').value = '' })
 
 // ---- 初始化 ----
 for (const s of SOURCES) {
