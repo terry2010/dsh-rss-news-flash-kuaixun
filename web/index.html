@@ -211,7 +211,11 @@ const store = {
 const cfg = {
   get fz() { return store.get('fz', 1) },
   get src() { return store.get('src', '') },            // '' = 全部源
-  get mode() { return store.get('mode', 'all') },       // 'all' | 'imp'
+  get modes() { // 多选过滤集：[] = 全部；旧版单选字符串自动迁移
+    const v = store.get('mode', 'all')
+    if (Array.isArray(v)) return v.filter((m) => m === 'imp' || m === 'multi')
+    return v === 'imp' || v === 'multi' ? [v] : []
+  },
   get auto() { return store.get('auto', true) },        // 自动刷新开关
   get hide() { return store.get('hide', {}) },           // {sourceId: true} = 隐藏
   get alias() { return store.get('alias', {}) },         // {sourceId: '短标'}
@@ -338,8 +342,9 @@ function render(clusters, markFresh = true) {
     const srcs = visSrcs(c)
     return srcs.length
       && (!cfg.src || c.items.some((m) => m.sourceId === cfg.src))
-      && (cfg.mode !== 'imp' || c.hot)
-      && (cfg.mode !== 'multi' || srcs.length >= 2)
+      && (!cfg.modes.length
+        || (cfg.modes.includes('imp') && c.hot)
+        || (cfg.modes.includes('multi') && srcs.length >= 2)) // 多选取并集：命中任一即显示
   })
   const list = $('#list')
   list.textContent = ''
@@ -446,10 +451,21 @@ const applyRangeUI = () => { $('#from').hidden = $('#to').hidden = range !== 'cu
 $('#range').addEventListener('change', (e) => { range = e.target.value; store.set('range', range); applyRangeUI(); if (kw) tick(false) })
 $('#from').addEventListener('change', (e) => { customFrom = e.target.value; store.set('cf', customFrom); if (kw) tick(false) })
 $('#to').addEventListener('change', (e) => { customTo = e.target.value; store.set('ct', customTo); if (kw) tick(false) })
+// 全部/重要/多源：重要·多源可同时选中（并集过滤），点「全部」清空回到全量
+const syncModeSeg = (modes) => {
+  document.querySelectorAll('#modeSeg button').forEach((x) => {
+    x.classList.toggle('on', x.dataset.mode === 'all' ? !modes.length : modes.includes(x.dataset.mode))
+  })
+}
 $('#modeSeg').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-mode]'); if (!b) return
-  store.set('mode', b.dataset.mode)
-  document.querySelectorAll('#modeSeg button').forEach((x) => x.classList.toggle('on', x === b))
+  const modes = new Set(cfg.modes)
+  if (b.dataset.mode === 'all') modes.clear()
+  else if (modes.has(b.dataset.mode)) modes.delete(b.dataset.mode)
+  else modes.add(b.dataset.mode)
+  const arr = [...modes]
+  store.set('mode', arr)
+  syncModeSeg(arr)
   render(lastItems)
 })
 $('#ivMin').addEventListener('change', (e) => {
@@ -574,7 +590,7 @@ $('#srcSel').value = cfg.src
 $('#range').value = range; $('#from').value = customFrom; $('#to').value = customTo; applyRangeUI()
 $('#ivMin').value = cfg.ivMin
 $('#autoTgl').checked = cfg.auto
-document.querySelectorAll('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.mode === cfg.mode))
+syncModeSeg(cfg.modes)
 fzApply()
 function armTimer() {
   clearInterval(timer)
