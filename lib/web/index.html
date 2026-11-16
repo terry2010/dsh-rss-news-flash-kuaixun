@@ -227,7 +227,8 @@ const cfg = {
 const FZ = { MIN: 0.8, MAX: 1.6, STEP: 0.1 }
 
 let known = new Set(), firstLoad = true, timer = 0, lastItems = [], kw = '', kwTimer = 0
-const expanded = new Set() // 聚合簇展开态：key=rep.id
+const expanded = new Set()   // 聚合簇展开态：key=rep.id
+const openBodies = new Set() // 正文展开态：key=item.id——刷新重建 DOM 后保持展开
 let range = store.get('range', 'today'), customFrom = store.get('cf', ''), customTo = store.get('ct', '')
 
 // 主题：?theme= 首帧 + rnd-theme postMessage 跟随主阅读器
@@ -359,13 +360,21 @@ function render(clusters, markFresh = true) {
     const full = decodeEnt((m.content || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
       .replace(/\n{3,}/g, '\n\n').trim())
     if (full.length <= txt(m).length + 80) return
-    const bd = document.createElement('div'); bd.className = 'body'; bd.hidden = true; bd.textContent = full
-    const tg = document.createElement('span'); tg.className = 'more'; tg.textContent = '▸ 正文'
-    tg.addEventListener('click', (e) => {
-      e.stopPropagation()
-      bd.hidden = !bd.hidden
-      tg.textContent = bd.hidden ? '▸ 正文' : '▾ 收起'
-    })
+    const pinned = openBodies.has(m.id)
+    const bd = document.createElement('div'); bd.className = 'body'; bd.hidden = !pinned; bd.textContent = full
+    const tg = document.createElement('span'); tg.className = 'more'; tg.textContent = pinned ? '▾ 正文' : '▸ 正文'
+    // 悬停展开/收起：200ms 宽限让鼠标能从开关移进正文区不收起；
+    // 鼠标在「正文开关」或「正文区」任一处都保持展开，两个都离开才收起
+    let closeTimer = 0
+    const open = () => { bd.hidden = false; tg.textContent = '▾ 正文'; openBodies.add(m.id) }
+    const close = () => { bd.hidden = true; tg.textContent = '▸ 正文'; openBodies.delete(m.id) }
+    const scheduleClose = () => { clearTimeout(closeTimer); closeTimer = setTimeout(close, 200) }
+    const cancelClose = () => clearTimeout(closeTimer)
+    tg.addEventListener('mouseenter', () => { cancelClose(); open() })
+    tg.addEventListener('mouseleave', scheduleClose)
+    bd.addEventListener('mouseenter', cancelClose)
+    bd.addEventListener('mouseleave', scheduleClose)
+    tg.addEventListener('click', (e) => { e.stopPropagation(); bd.hidden ? open() : close() }) // 兜底：触屏/偏好点击
     box.closest('.row').insertAdjacentElement('afterend', bd)
     box.appendChild(tg)
     pending.push([bd, box])
