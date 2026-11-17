@@ -1,8 +1,8 @@
 /**
  * 快讯独立库：node:sqlite 单文件，与主插件 store.db 完全隔离。
  *
- * - 路径 <主数据目录>/companions/news-kuaixun/kuaixun.db——放主数据目录下是为了
- *   让主插件备份（companions/ 递归打包）与恢复（整体写回）免费覆盖本库。
+ * - 路径 <主数据目录>/companions/rss-news-flash-kuaixun/kuaixun.db——放主数据目录下
+ *   是为了让主插件备份（companions/ 递归打包）与恢复（整体写回）免费覆盖本库。
  * - journal_mode=DELETE：不用 WAL——备份时整文件拷贝即一致快照，无 -wal 伴生。
  * - 检索：LIKE 兜底（条目是一句话级，2 万条内全扫毫秒级）；不引 FTS 同步复杂度。
  */

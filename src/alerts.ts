@@ -13,7 +13,7 @@
  * 聚合：一轮抓取内的所有命中先进 buffer，windowMs 后合并成一条通知，
  * 按通道分节展示——「重要 N 条 / 多源 N 条 / 关键字「…」N 条」，不逐条弹。
  *
- * alerts.json（dataDir=companions/news-kuaixun，与 kuaixun.db 同目录——
+ * alerts.json（dataDir=companions/rss-news-flash-kuaixun，与 kuaixun.db 同目录——
  * 主插件备份 companions/ 时一起带走）：
  *   { keywords: [...], keyword: bool, important: bool, multi: bool }
  * 旧格式只有 keywords 时迁移为 keyword=有词即开，important/multi 默认关。

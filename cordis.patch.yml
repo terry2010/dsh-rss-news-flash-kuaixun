@@ -2,6 +2,6 @@
 # id 必须与插件 export const name 一致。
 
 - insert:
-    - id: news-kuaixun
+    - id: rss-news-flash-kuaixun
       name: 'dsh-rss-news-flash-kuaixun'
       config: {}

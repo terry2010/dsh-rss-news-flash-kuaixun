@@ -2,12 +2,12 @@
  * dsh-rss-news-flash-kuaixun 插件入口（私有包）。
  *
  * 契约（cordis bundle）：
- *  - name    'news-kuaixun'（cordis.patch.yml 里 id 必须一致）
+ *  - name    'rss-news-flash-kuaixun'（cordis.patch.yml 里 id 必须一致）
  *  - inject  []（rndSources 走内部 ctx.inject 动态等待——主插件后装自动激活；
  *    缺席时 warn + /api/dep 路由指路，应用内 modal 由 lib/client.js 呈现）
  *  - apply   独立抓取管线（自有 fetcher/kv/轮询/SQLite）+ 提醒 + 视图注册
  *
- * 存储完全独立：条目/源定义/游标全在 companions/news-kuaixun/kuaixun.db，
+ * 存储完全独立：条目/源定义/游标全在 companions/rss-news-flash-kuaixun/kuaixun.db，
  * 不进主插件 store.db。启动时调 rndSources.removeSources 清掉历史注入数据。
  * 仍消费 rndSources 的 notify（桌面通知）与 registerView（阅读器 tab）；
  * apiVersion≥2 时另经 registerBriefType 挂「快讯快报」条目供给器，
@@ -35,13 +35,13 @@ import { eastmoney } from './methods/eastmoney.js'
 import { ths } from './methods/ths.js'
 import { sina } from './methods/sina.js'
 
-export const name = 'news-kuaixun'
+export const name = 'rss-news-flash-kuaixun'
 // 不静态 inject rndSources：主插件缺席时插件整个 PENDING 静默装死，用户无感知。
 // 改为 apply 始终运行 + 内部 ctx.inject 待命——缺主插件打 warn 指路，
 // 用户随后装上主插件时 cordis 自动解析 pending inject，本插件就地激活（自愈）。
 export const inject: string[] = []
 
-/** 源定义：method 名 = 'news-kuaixun:<方法>'，与下方 handlers 一一对应。 */
+/** 源定义：method 名 = 'rss-news-flash-kuaixun:<方法>'，与下方 handlers 一一对应。 */
 const sources = JSON.parse(
   readFileSync(new URL('./sources.flash.json', import.meta.url), 'utf8'),
 ) as { sources: SourceDef[] }
@@ -69,7 +69,7 @@ export function apply(ctx: Context) {
     mountDepRoutes((c as unknown as { webServer: Parameters<typeof mountDepRoutes>[0] }).webServer, ctx, log, resolveDataDir())
   })
   if (!hasService(ctx, 'rndSources')) {
-    log.warn('news-kuaixun 依赖主插件 dsh-rss-news-daily（rndSources 服务）：请先安装主插件；装上后本插件自动激活，无需重装')
+    log.warn('rss-news-flash-kuaixun 依赖主插件 dsh-rss-news-daily（rndSources 服务）：请先安装主插件；装上后本插件自动激活，无需重装')
   }
   // inject 声明挂在回调的子 ctx 上——bootstrap 必须用 c 才能访问 rndSources
   ctx.inject(['rndSources'], (c) => bootstrap(c, log))
@@ -117,12 +117,12 @@ function bootstrap(ctx: Context, log: ReturnType<Context['logger']>) {
   const fetcher = createFetcher({ timeoutMs: 12_000, retries: 1 })
 
   const handlers = new Map<string, MethodHandler>([
-    ['news-kuaixun:cls-telegraph', cls(get)],
-    ['news-kuaixun:jin10-flash', jin10(get)],
-    ['news-kuaixun:wscn-lives', wscn(get)],
-    ['news-kuaixun:em-ajax', eastmoney(get)],
-    ['news-kuaixun:ths-push', ths(get)],
-    ['news-kuaixun:sina-zhibo', sina(get)],
+    ['rss-news-flash-kuaixun:cls-telegraph', cls(get)],
+    ['rss-news-flash-kuaixun:jin10-flash', jin10(get)],
+    ['rss-news-flash-kuaixun:wscn-lives', wscn(get)],
+    ['rss-news-flash-kuaixun:em-ajax', eastmoney(get)],
+    ['rss-news-flash-kuaixun:ths-push', ths(get)],
+    ['rss-news-flash-kuaixun:sina-zhibo', sina(get)],
   ])
   const feedSrc = (d: SourceDef): FeedSourceLike => ({
     id: d.url, url: d.url, title: d.title, category: d.category ?? '快讯',
@@ -159,10 +159,13 @@ function bootstrap(ctx: Context, log: ReturnType<Context['logger']>) {
     } finally { running = false }
   }
 
-  // 历史清理：早期版本把六源注入主库（sources+items+methodState）——转独立存储后清掉
-  void ctx.rndSources.removeSources(name).then((n) => {
-    if (n) log.info(`cleaned ${n} legacy source(s) + items from main store`)
-  })
+  // 历史清理：早期版本把六源注入主库（sources+items+methodState）——转独立存储后清掉；
+  // 'news-kuaixun' 为改名前 provider（0.1.0 前），旧源行的 method 不换名会残留 unknown method
+  for (const p of [name, 'news-kuaixun']) {
+    void ctx.rndSources.removeSources(p).then((n) => {
+      if (n) log.info(`cleaned ${n} legacy source(s) + items from main store (provider=${p})`)
+    })
+  }
 
   void poll()
   const timer = setInterval(() => { void poll() }, POLL_MS)

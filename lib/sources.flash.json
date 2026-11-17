@@ -7,7 +7,7 @@
       "category": "快讯",
       "tier": 1,
       "lang": "zh",
-      "method": "news-kuaixun:cls-telegraph",
+      "method": "rss-news-flash-kuaixun:cls-telegraph",
       "summarize": false,
       "enabled": true,
       "stream": true
@@ -18,7 +18,7 @@
       "category": "快讯",
       "tier": 1,
       "lang": "zh",
-      "method": "news-kuaixun:jin10-flash",
+      "method": "rss-news-flash-kuaixun:jin10-flash",
       "summarize": false,
       "enabled": true,
       "stream": true
@@ -29,7 +29,7 @@
       "category": "快讯",
       "tier": 1,
       "lang": "zh",
-      "method": "news-kuaixun:wscn-lives",
+      "method": "rss-news-flash-kuaixun:wscn-lives",
       "summarize": false,
       "stream": true
     },
@@ -39,7 +39,7 @@
       "category": "快讯",
       "tier": 2,
       "lang": "zh",
-      "method": "news-kuaixun:em-ajax",
+      "method": "rss-news-flash-kuaixun:em-ajax",
       "summarize": false,
       "stream": true
     },
@@ -49,7 +49,7 @@
       "category": "快讯",
       "tier": 2,
       "lang": "zh",
-      "method": "news-kuaixun:ths-push",
+      "method": "rss-news-flash-kuaixun:ths-push",
       "summarize": false,
       "stream": true
     },
@@ -59,7 +59,7 @@
       "category": "快讯",
       "tier": 3,
       "lang": "zh",
-      "method": "news-kuaixun:sina-zhibo",
+      "method": "rss-news-flash-kuaixun:sina-zhibo",
       "summarize": false,
       "stream": true
     }
