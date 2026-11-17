@@ -61,30 +61,32 @@
   .fz button { width: 28px; padding: 0; }
   #list { font-size: calc(13px * var(--fz)); }
   .row {
-    display: flex; gap: 10px; padding: 5px 12px; align-items: baseline; position: relative;
+    display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 2px 10px;
+    padding: 5px 12px; align-items: baseline; position: relative;
     border-bottom: 1px solid color-mix(in srgb, CanvasText 8%, transparent);
   }
   .row.fresh { animation: flash 2.4s ease-out; }
   @keyframes flash { from { background: color-mix(in srgb, #ff9500 22%, transparent); } to { background: transparent; } }
-  .t { flex: none; font-variant-numeric: tabular-nums; opacity: .55; font-size: .85em; padding-top: 2px; }
+  .t { grid-column: 1; grid-row: 1 / span 2; font-variant-numeric: tabular-nums; opacity: .55; font-size: .85em; padding-top: 2px; }
   .src {
-    flex: none; font-size: .75em; opacity: .7; padding: 1px 5px; border-radius: 4px; align-self: center;
+    grid-column: 2; grid-row: 1; font-size: .75em; opacity: .7; padding: 1px 5px; border-radius: 4px; align-self: center;
     background: color-mix(in srgb, CanvasText 10%, transparent); white-space: nowrap;
+    max-width: 240px; overflow: hidden; text-overflow: ellipsis;
   }
-  .src.multi { background: color-mix(in srgb, #2f6feb 16%, transparent); color: #2f6feb; font-weight: 600; opacity: 1; cursor: pointer; max-width: 46%; overflow: hidden; text-overflow: ellipsis; }
+  .src.multi { background: color-mix(in srgb, #2f6feb 16%, transparent); color: #2f6feb; font-weight: 600; opacity: 1; cursor: pointer; }
   .src.multi:hover { background: color-mix(in srgb, #2f6feb 28%, transparent); }
   .src.multi .tot { display: inline-block; font-weight: 700; padding: 0 4px; margin-right: 4px; border-radius: 3px; background: #2f6feb; color: #fff; }
   /* 展开态第 1 行的本源徽标：与 .tot 同色系的浅色 chip */
   .src.multi .own { display: inline-block; font-weight: 600; padding: 0 4px; margin-right: 4px; border-radius: 3px; background: color-mix(in srgb, Canvas 22%, transparent); }
-  /* 市场域/栏目标签行：标题行下面独占一行，paddingLeft 由 JS 对齐标题列 */
-  .tagline { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; padding: 0 12px 3px 0; margin-top: -3px; }
-  .tagline .mkt { flex: none; font-size: .72em; font-weight: 600; padding: 0 4px; border-radius: 3px; white-space: nowrap; background: color-mix(in srgb, #d45500 13%, transparent); color: #d45500; }
-  .tagline .ctag { font-size: .72em; white-space: nowrap; padding: 0 4px; border-radius: 3px; color: color-mix(in srgb, CanvasText 55%, transparent); background: color-mix(in srgb, CanvasText 7%, transparent); }
-  .row.sub + .tagline { font-size: .9em; }
+  /* 市场域/栏目标签 chips：左列第二行，位于来源徽标正下方 */
+  .tags { grid-column: 2; grid-row: 2; display: inline-flex; gap: 3px; align-items: center; justify-self: start; min-width: 0; max-width: 240px; overflow: hidden; }
+  .tags .mkt { flex: none; font-size: .72em; font-weight: 600; padding: 0 4px; border-radius: 3px; white-space: nowrap; background: color-mix(in srgb, #d45500 13%, transparent); color: #d45500; }
+  .tags .ctag { font-size: .72em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: color-mix(in srgb, CanvasText 52%, transparent); }
+  .row.sub .tags .mkt, .row.sub .tags .ctag { font-size: .66em; }
   /* 聚合簇展开后的各源子行 */
   .row.sub { padding-left: 58px; background: color-mix(in srgb, CanvasText 3%, transparent); }
   .row.sub .t, .row.sub .src { font-size: .8em; }
-  .txt { flex: 1; min-width: 0; }
+  .txt { grid-column: 3; grid-row: 1 / span 2; min-width: 0; align-self: start; padding-top: 1px; }
   .txt a { color: inherit; text-decoration: none; }
   .txt a:hover { text-decoration: underline; }
   .imp { color: #d45500; font-weight: 600; }
@@ -352,17 +354,20 @@ async function load() {
   return clusterize(uniqById(pages.flatMap((x) => x.items || [])).sort(byTimeDesc))
 }
 
-// 标签行：标题行下面独占一行，缩进由 JS 对齐标题列。市场域 chip + 源原生栏目名全量
-const tagLine = (m) => {
+// 标签 chips：市场域 chip（与原生 tag 同名时去重）+ 首个源原生栏目名（悬停看全量）
+const tagChips = (m) => {
   const mk = m.market
-  const show = (Array.isArray(m.tags) ? m.tags : []).filter((x) => x && x !== mk).slice(0, 12)
+  const show = (Array.isArray(m.tags) ? m.tags : []).filter((x) => x && x !== mk)
   if ((!mk || mk === '其他') && !show.length) return null
-  const el = document.createElement('div'); el.className = 'tagline'
+  const el = document.createElement('span'); el.className = 'tags'
   if (mk && mk !== '其他') {
     const me = document.createElement('span'); me.className = 'mkt'; me.textContent = mk; el.appendChild(me)
   }
-  for (const t of show) {
-    const te = document.createElement('span'); te.className = 'ctag'; te.textContent = t; el.appendChild(te)
+  if (show.length) {
+    const te = document.createElement('span'); te.className = 'ctag'
+    te.textContent = show[0] + (show.length > 1 ? `+${show.length - 1}` : '')
+    te.title = show.join('、')
+    el.appendChild(te)
   }
   return el
 }
@@ -459,11 +464,11 @@ function render(clusters, markFresh = true) {
     a.href = rep.link || '#'; a.target = '_blank'; a.rel = 'noopener noreferrer'
     a.textContent = txt(rep) || '(无文本)'
     if (cfg.mark && c.hot) a.className = 'imp'
-    b.appendChild(a); row.append(t, s, b); list.appendChild(row)
+    b.appendChild(a)
+    const tc = tagChips(rep)
+    tc ? row.append(t, s, tc, b) : row.append(t, s, b)
+    list.appendChild(row)
     addBody(rep, b)
-    // 标签行插到行后（正文块之上），缩进对齐标题列
-    const tl = tagLine(rep)
-    if (tl) { row.insertAdjacentElement('afterend', tl); pending.push([tl, b]) }
     // 展开态：簇内其余成员各一行（rep 行本身就是代表，不重复列）
     if (expanded.has(rep.id)) {
       for (const m of visItems(c).filter((x) => x !== rep).sort(byTimeDesc)) {
@@ -475,10 +480,11 @@ function render(clusters, markFresh = true) {
         sa.href = m.link || '#'; sa.target = '_blank'; sa.rel = 'noopener noreferrer'
         sa.textContent = txt(m) || '(无文本)'
         if (cfg.mark && isImp(m)) sa.className = 'imp'
-        sb.appendChild(sa); sr.append(st, ss, sb); list.appendChild(sr)
+        sb.appendChild(sa)
+        const tc2 = tagChips(m)
+        tc2 ? sr.append(st, ss, tc2, sb) : sr.append(st, ss, sb)
+        list.appendChild(sr)
         addBody(m, sb)
-        const tl2 = tagLine(m)
-        if (tl2) { sr.insertAdjacentElement('afterend', tl2); pending.push([tl2, sb]) }
       }
     }
   }
