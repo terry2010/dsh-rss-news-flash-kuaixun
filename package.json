@@ -9,6 +9,25 @@
     "lib",
     "cordis.patch.yml"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/terry2010/dsh-rss-news-flash-kuaixun.git"
+  },
+  "homepage": "https://github.com/terry2010/dsh-rss-news-flash-kuaixun#readme",
+  "bugs": "https://github.com/terry2010/dsh-rss-news-flash-kuaixun/issues",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "news",
+    "flash-news",
+    "kuaixun",
+    "finance",
+    "stock-news",
+    "ticker",
+    "rss",
+    "real-time"
+  ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

@@ -1,4 +1,13 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/terry2010/dsh-rss-news-flash-kuaixun/master/assets/banner.svg" alt="快讯" width="760">
+</p>
+
 # dsh-rss-news-flash-kuaixun
+
+**财经快讯 60 秒一轮直达 dsh 新闻面板——财联社、金十、华尔街见闻等六源聚合，AI 快报与桌面通知开箱即用。**
+
+[![npm version](https://img.shields.io/npm/v/dsh-rss-news-flash-kuaixun)](https://www.npmjs.com/package/dsh-rss-news-flash-kuaixun)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 「快讯」—— [dsh-rss-news-daily](https://github.com/terry2010/dsh-rss-news-daily)（RSS 每日精选）的伴随插件：为主插件注入一条 **60 秒轮询的实时财经快讯流**，并复用主插件的 AI 快报产线、桌面通知与阅读器界面。
 

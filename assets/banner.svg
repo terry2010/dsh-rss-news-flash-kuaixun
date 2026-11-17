@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="200" viewBox="0 0 760 200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="0.55" stop-color="#1e293b"/>
+      <stop offset="1" stop-color="#7f1d1d"/>
+    </linearGradient>
+  </defs>
+  <rect width="760" height="200" rx="14" fill="url(#bg)"/>
+  <polyline points="0,176 70,176 110,158 150,182 200,146 250,164 310,134 370,156 430,126 490,146 550,116 610,138 670,106 760,124"
+    fill="none" stroke="#f87171" stroke-width="3" stroke-linejoin="round" opacity="0.85"/>
+  <text x="52" y="92" font-family="'PingFang SC','Microsoft YaHei',system-ui,sans-serif" font-size="52" font-weight="700" fill="#f8fafc">快讯</text>
+  <text x="182" y="92" font-family="ui-monospace,'SF Mono',Menlo,monospace" font-size="24" font-weight="600" fill="#e2e8f0">dsh-rss-news-flash-kuaixun</text>
+  <text x="52" y="134" font-family="'PingFang SC','Microsoft YaHei',system-ui,sans-serif" font-size="20" fill="#fca5a5">实时财经快讯流 · 六源聚合 · 多源互证 · AI 快报</text>
+</svg>
