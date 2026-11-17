@@ -53,6 +53,11 @@ node scripts/install-to-profile.mjs desktop   # 装进本地 dsh profile 验证�
 
 技术栈：TypeScript / cordis / rndSources API v3 / better-sqlite3。主插件接口契约见主仓库 `docs/PLUGINS.md`。
 
+## 相关插件
+
+- **[dsh-rss-news-daily](https://github.com/terry2010/dsh-rss-news-daily)** —— 主插件（必需）：RSS 订阅 + AI 每日精选/时段快报 + 侧栏新闻阅读器，本插件的快报产线/通知/界面均由它提供
+- **[dsh-rss-news-browser-fetch](https://github.com/terry2010/dsh-rss-news-browser-fetch)** —— browserFetch 浏览器传输服务（可选）：node fetch 被源端风控拦截时自动回落真实浏览器取数
+
 ## License
 
 Apache-2.0
