@@ -51,6 +51,12 @@ npm test                                # tsc 构建 + copy-assets + node --test
 node scripts/install-to-profile.mjs desktop   # 装进本地 dsh profile 验证（需重启 dsh）
 ```
 
+开发前需把主插件 clone 到同级目录（devDep `file:` 引用 + 类型契约来源）：
+
+```bash
+git clone https://github.com/terry2010/dsh-rss-news-daily ../dsh-rss-news-daily
+```
+
 技术栈：TypeScript / cordis / rndSources API v3 / better-sqlite3。主插件接口契约见主仓库 `docs/PLUGINS.md`。
 
 ## 相关插件
