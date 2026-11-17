@@ -3,7 +3,8 @@
  *
  * 契约（cordis bundle）：
  *  - name    'news-kuaixun'（cordis.patch.yml 里 id 必须一致）
- *  - inject  ['rndSources']（静态依赖：主插件服务未就位不执行）
+ *  - inject  []（rndSources 走内部 ctx.inject 动态等待——主插件后装自动激活，
+ *    缺席时仅 warn 指路不静默装死）
  *  - apply   独立抓取管线（自有 fetcher/kv/轮询/SQLite）+ 提醒 + 视图注册
  *
  * 存储完全独立：条目/源定义/游标全在 companions/news-kuaixun/kuaixun.db，
@@ -34,7 +35,10 @@ import { ths } from './methods/ths.js'
 import { sina } from './methods/sina.js'
 
 export const name = 'news-kuaixun'
-export const inject = ['rndSources']
+// 不静态 inject rndSources：主插件缺席时插件整个 PENDING 静默装死，用户无感知。
+// 改为 apply 始终运行 + 内部 ctx.inject 待命——缺主插件打 warn 指路，
+// 用户随后装上主插件时 cordis 自动解析 pending inject，本插件就地激活（自愈）。
+export const inject: string[] = []
 
 /** 源定义：method 名 = 'news-kuaixun:<方法>'，与下方 handlers 一一对应。 */
 const sources = JSON.parse(
@@ -58,6 +62,13 @@ type FeedSourceLike = Parameters<MethodHandler>[0]
 
 export function apply(ctx: Context) {
   const log = ctx.logger('kuaixun')
+  if (!(ctx as unknown as { rndSources?: unknown }).rndSources) {
+    log.warn('news-kuaixun 依赖主插件 dsh-rss-news-daily（rndSources 服务）：请先安装主插件；装上后本插件自动激活，无需重装')
+  }
+  ctx.inject(['rndSources'], () => bootstrap(ctx, log))
+}
+
+function bootstrap(ctx: Context, log: ReturnType<Context['logger']>) {
   if (ctx.rndSources.apiVersion < 1) {
     log.warn('rndSources apiVersion < 1; kuaixun inert (upgrade dsh-rss-news-daily)')
     return

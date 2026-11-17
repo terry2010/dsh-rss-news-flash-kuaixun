@@ -3,7 +3,8 @@
  *
  * 契约（cordis bundle）：
  *  - name    'news-kuaixun'（cordis.patch.yml 里 id 必须一致）
- *  - inject  ['rndSources']（静态依赖：主插件服务未就位不执行）
+ *  - inject  []（rndSources 走内部 ctx.inject 动态等待——主插件后装自动激活，
+ *    缺席时仅 warn 指路不静默装死）
  *  - apply   独立抓取管线（自有 fetcher/kv/轮询/SQLite）+ 提醒 + 视图注册
  *
  * 存储完全独立：条目/源定义/游标全在 companions/news-kuaixun/kuaixun.db，
