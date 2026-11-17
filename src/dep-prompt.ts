@@ -29,11 +29,11 @@ export interface DepState {
 type Log = { info(msg: string): void; warn(msg: string): void }
 
 export const DEP_PKG = 'dsh-rss-news-daily'
-export const DEP_SELF = 'dsh-news-kuaixun'
+export const DEP_SELF = 'dsh-rss-news-flash-kuaixun'
 export const DEP_GITHUB = 'https://github.com/terry2010/dsh-rss-news-daily'
 /** 卸载调查占位：上线前换成正式表单页（卸载教程 + 卸载原因问卷） */
 export const DEP_UNINSTALL_URL = 'https://baidu.com'
-export const DEP_BASE = '/dsh-news-kuaixun'
+export const DEP_BASE = '/dsh-rss-news-flash-kuaixun'
 
 function statePath(dataDir: string): string {
   return join(dataDir, 'dep-state.json')

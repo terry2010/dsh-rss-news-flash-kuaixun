@@ -68,7 +68,7 @@ test('depStatus：未见主插件→install 未弹；seenMain→removal', () => 
   assert.equal(s1.kind, 'install')
   assert.equal(s1.prompted, false)
   assert.equal(s1.pkg, 'dsh-rss-news-daily')
-  assert.match(s1.removeCmd, /dsh plugin --profile p1 remove dsh-news-kuaixun/)
+  assert.match(s1.removeCmd, /dsh plugin --profile p1 remove dsh-rss-news-flash-kuaixun/)
 
   markSeenMain(d)
   const s2 = depStatus({ dataDir: d, mainPresent: () => false, profile: { dir: d, name: 'p1' } })

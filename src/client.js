@@ -2,7 +2,7 @@
  * 客户端半体（classic script！宿主经 window.__ModuleLoader__.load 加载，
  * 禁止 ESM export）。唯一职责：主插件缺席时在应用内弹一次指路 modal。
  *
- * 数据来源：GET /dsh-news-kuaixun/api/dep（相对路径——与市场 client 同款，
+ * 数据来源：GET /dsh-rss-news-flash-kuaixun/api/dep（相对路径——与市场 client 同款，
  * shell 页面 origin 下相对 fetch 由宿主路由到 webServer）。
  * mainPresent=false 且该 kind 未 dismiss 过 → 弹层；用户任一按钮交互
  * （含「稍后」）→ POST dismiss 写 flag，各一生一次。
@@ -11,10 +11,10 @@
 ;(() => {
   'use strict'
 
-  const API = '/dsh-news-kuaixun/api/dep'
+  const API = '/dsh-rss-news-flash-kuaixun/api/dep'
 
   window.__ModuleLoader__.load({
-    id: 'dsh-news-kuaixun',
+    id: 'dsh-rss-news-flash-kuaixun',
     factory: () => {
       const inject = []
 

@@ -86,7 +86,7 @@ test('alerter: 关键字命中聚合成一条通知（分节+汇总数量）', a
   assert.equal(notes.length, 1) // 一批合并一条
   assert.match(notes[0].b, /关键字「降息」3 条/)
   assert.match(notes[0].b, /【金十】美联储降息落地/)
-  assert.equal(notes[0].p, '/dsh-news-kuaixun/')
+  assert.equal(notes[0].p, '/dsh-rss-news-flash-kuaixun/')
   alerter.dispose()
 })
 

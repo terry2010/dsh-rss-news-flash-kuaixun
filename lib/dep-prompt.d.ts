@@ -24,11 +24,11 @@ type Log = {
     warn(msg: string): void;
 };
 export declare const DEP_PKG = "dsh-rss-news-daily";
-export declare const DEP_SELF = "dsh-news-kuaixun";
+export declare const DEP_SELF = "dsh-rss-news-flash-kuaixun";
 export declare const DEP_GITHUB = "https://github.com/terry2010/dsh-rss-news-daily";
 /** 卸载调查占位：上线前换成正式表单页（卸载教程 + 卸载原因问卷） */
 export declare const DEP_UNINSTALL_URL = "https://baidu.com";
-export declare const DEP_BASE = "/dsh-news-kuaixun";
+export declare const DEP_BASE = "/dsh-rss-news-flash-kuaixun";
 export declare function readDepState(dataDir: string): DepState;
 /**
  * bootstrap 里调用：主插件在位 → 记 seenMain 并清两类 prompted。

@@ -208,7 +208,7 @@
 <script>
 'use strict'
 const $ = (s) => document.querySelector(s)
-const API = '/dsh-news-kuaixun/api' // 独立库：条目/提醒都走本插件端点，不再读主插件 /api/items
+const API = '/dsh-rss-news-flash-kuaixun/api' // 独立库：条目/提醒都走本插件端点，不再读主插件 /api/items
 const SOURCES = [
   { id: 'https://www.cls.cn/telegraph', name: '财联社电报', short: '财联社' },
   { id: 'https://www.jin10.com/', name: '金十数据', short: '金十' },
@@ -552,7 +552,7 @@ $('#fzDn').addEventListener('click', () => fzStep(-1))
 $('#fzUp').addEventListener('click', () => fzStep(1))
 
 // ---- 设置弹层 ----
-const KXAPI = '/dsh-news-kuaixun/api'
+const KXAPI = '/dsh-rss-news-flash-kuaixun/api'
 async function kxApi(path, opts) {
   const r = await fetch(`${KXAPI}${path}`, { credentials: 'same-origin', ...opts })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -560,7 +560,7 @@ async function kxApi(path, opts) {
 }
 
 // ---- tag 式关键字编辑 ----
-// 词存服务端 alerts.json（/dsh-news-kuaixun/api/alerts）——命中匹配发生在
+// 词存服务端 alerts.json（/dsh-rss-news-flash-kuaixun/api/alerts）——命中匹配发生在
 // 插件进程的抓取 handler 里，localStorage 页面够不到，必须走 API。
 // alertLoaded=false 时不回传 keywords——GET 失败不覆盖服务端词表。
 let alertTags = [], alertLoaded = false

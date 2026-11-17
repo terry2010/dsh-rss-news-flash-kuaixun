@@ -1,5 +1,5 @@
 /**
- * dsh-news-kuaixun 插件入口（私有包）。
+ * dsh-rss-news-flash-kuaixun 插件入口（私有包）。
  *
  * 契约（cordis bundle）：
  *  - name    'news-kuaixun'（cordis.patch.yml 里 id 必须一致）

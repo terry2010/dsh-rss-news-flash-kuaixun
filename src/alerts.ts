@@ -154,7 +154,7 @@ export function createAlerter(opts: {
       parts.push(section(`关键字「${kws}」${kw.length} 条：`, kw))
     }
     try {
-      opts.notify('⚡ 快讯提醒', parts.join('\n').slice(0, 600), '/dsh-news-kuaixun/')
+      opts.notify('⚡ 快讯提醒', parts.join('\n').slice(0, 600), '/dsh-rss-news-flash-kuaixun/')
     } catch (e) {
       opts.log?.warn?.(`alert notify failed: ${(e as Error).message}`)
     }

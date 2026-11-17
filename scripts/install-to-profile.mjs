@@ -16,7 +16,7 @@ import { execSync } from 'node:child_process'
 const profile = process.argv[2] || 'desktop'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const profileDir = join(homedir(), '.dsh', 'profiles', profile)
-const target = join(profileDir, 'node_modules', 'dsh-news-kuaixun')
+const target = join(profileDir, 'node_modules', 'dsh-rss-news-flash-kuaixun')
 
 if (!existsSync(profileDir)) {
   console.error(`profile 不存在: ${profileDir}`)
@@ -35,12 +35,12 @@ for (const p of ['lib', 'web', 'native', 'cordis.patch.yml', 'package.json', 'RE
 const pkgPath = join(profileDir, 'package.json')
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
 pkg.dependencies = pkg.dependencies || {}
-pkg.dependencies['dsh-news-kuaixun'] = `file:${target}`
+pkg.dependencies['dsh-rss-news-flash-kuaixun'] = `file:${target}`
 pkg.dsh = pkg.dsh || {}
 pkg.dsh.profile = pkg.dsh.profile || {}
 pkg.dsh.profile.bundles = pkg.dsh.profile.bundles || []
-if (!pkg.dsh.profile.bundles.includes('dsh-news-kuaixun')) {
-  pkg.dsh.profile.bundles.push('dsh-news-kuaixun')
+if (!pkg.dsh.profile.bundles.includes('dsh-rss-news-flash-kuaixun')) {
+  pkg.dsh.profile.bundles.push('dsh-rss-news-flash-kuaixun')
 }
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
 console.log(`installed -> ${target}`)

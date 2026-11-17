@@ -1,5 +1,5 @@
 {
-  "name": "dsh-news-kuaixun",
+  "name": "dsh-rss-news-flash-kuaixun",
   "version": "0.1.0",
   "private": true,
   "description": "dsh companion plugin (PRIVATE): direct first-party flash news adapters — 财联社电报/金十/华尔街见闻/东方财富/同花顺/新浪财经 7×24.",
