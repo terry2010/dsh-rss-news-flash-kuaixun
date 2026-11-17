@@ -14,9 +14,9 @@ test('db: insert 去重——同 id 二次插入不算新条目', () => {
   const dir = mkdtempSync(join(tmpdir(), 'kx-db-'))
   try {
     const db = new KxDb(dir)
-    const a = db.insert(SRC, '金十', [it('j1', '第一条'), it('j2', '第二条')])
+    const a = db.insert(SRC, [it('j1', '第一条'), it('j2', '第二条')])
     assert.equal(a.length, 2)
-    const b = db.insert(SRC, '金十', [it('j1', '第一条'), it('j3', '第三条')])
+    const b = db.insert(SRC, [it('j1', '第一条'), it('j3', '第三条')])
     assert.equal(b.length, 1) // j1 重复被 IGNORE，只有 j3 是新的
     assert.equal(b[0].id, 'j3')
     db.close()
@@ -27,10 +27,10 @@ test('db: query——source/q/after/before/分页', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'kx-db-'))
   try {
     const db = new KxDb(dir)
-    db.insert(SRC, '金十', [it('j1', '美联储降息'), it('j2', '港股收评')])
-    db.insert('https://www.cls.cn/telegraph', '财联社', [it('c1', '降息预期升温')])
+    db.insert(SRC, [it('j1', '美联储降息'), it('j2', '港股收评')])
+    db.insert('https://www.cls.cn/telegraph', [it('c1', '降息预期升温')])
     await new Promise((r) => setTimeout(r, 5)) // fetchedAt 区分度
-    db.insert(SRC, '金十', [it('j3', '英伟达新品')])
+    db.insert(SRC, [it('j3', '英伟达新品')])
 
     assert.equal(db.query({}).total, 4)
     assert.equal(db.query({ source: SRC }).total, 3)

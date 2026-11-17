@@ -27,11 +27,11 @@ test('briefItems: 窗口过滤 + 多源互证 rep 9 分 + 非 rep dupOf', () => 
   const dir = mkdtempSync(join(tmpdir(), 'kx-brief-'))
   try {
     const db = new KxDb(dir)
-    db.insert(JIN10, '金十', [it('j1', '美联储宣布降息25个基点')])
-    db.insert(CLS, '财联社', [it('c1', '【财联社】美联储降息25个基点落地')])
-    db.insert(JIN10, '金十', [it('j2', '英伟达财报超预期', { hot: 1 })])
-    db.insert(CLS, '财联社', [it('c2', '比特币突破10万美元', { market: '加密' })])
-    db.insert(JIN10, '金十', [it('j0', '旧闻一条', { publishedAt: '2026-11-17T08:00:00.000Z' })])
+    db.insert(JIN10, [it('j1', '美联储宣布降息25个基点')])
+    db.insert(CLS, [it('c1', '【财联社】美联储降息25个基点落地')])
+    db.insert(JIN10, [it('j2', '英伟达财报超预期', { hot: 1 })])
+    db.insert(CLS, [it('c2', '比特币突破10万美元', { market: '加密' })])
+    db.insert(JIN10, [it('j0', '旧闻一条', { publishedAt: '2026-11-17T08:00:00.000Z' })])
     const items = briefItems(db, SINCE)
     assert.equal(items.length, 4) // j0 在窗口外
     const rep = items.find((x) => x.llmScore === 9)
@@ -52,8 +52,8 @@ test('briefItems: market 空/其他 → topic 综合', () => {
   const dir = mkdtempSync(join(tmpdir(), 'kx-brief-'))
   try {
     const db = new KxDb(dir)
-    db.insert(JIN10, '金十', [it('m1', '欧元区ZEW指数公布-14.7', { market: '其他' })])
-    db.insert(JIN10, '金十', [it('m2', '香港恒生指数收涨', { market: '港股' })])
+    db.insert(JIN10, [it('m1', '欧元区ZEW指数公布-14.7', { market: '其他' })])
+    db.insert(JIN10, [it('m2', '香港恒生指数收涨', { market: '港股' })])
     const items = briefItems(db, SINCE)
     assert.equal(items.find((x) => x.id === 'm1').topic, '综合')
     assert.equal(items.find((x) => x.id === 'm2').topic, '港股')

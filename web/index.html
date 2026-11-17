@@ -263,6 +263,8 @@ const hm = (iso) => {
 const txt = (it) => (it.title || '').trim() || (it.content || '').replace(/<[^>]+>/g, '').trim()
 const decodeEnt = (s) => s.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
   .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&amp;/g, '&')
+// 链接协议白名单——源 API 的 link 字段是不可信数据，javascript:/data: 等一律回退 '#' 防 XSS
+const safeHref = (u) => (/^https?:\/\//i.test(u || '') ? u : '#')
 const shortOf = (id) => cfg.alias[id] || SOURCES.find((s) => s.id === id)?.short || '快讯'
 const isImp = (it) => it.state?.hot === true // 源原生重要标记（红电/加红/color=2）
 
@@ -461,7 +463,7 @@ function render(clusters, markFresh = true) {
     }
     const b = document.createElement('div'); b.className = 'txt'
     const a = document.createElement('a')
-    a.href = rep.link || '#'; a.target = '_blank'; a.rel = 'noopener noreferrer'
+    a.href = safeHref(rep.link); a.target = '_blank'; a.rel = 'noopener noreferrer'
     a.textContent = txt(rep) || '(无文本)'
     if (cfg.mark && c.hot) a.className = 'imp'
     b.appendChild(a)
@@ -477,7 +479,7 @@ function render(clusters, markFresh = true) {
         const ss = document.createElement('span'); ss.className = 'src'; ss.textContent = shortOf(m.sourceId)
         const sb = document.createElement('div'); sb.className = 'txt'
         const sa = document.createElement('a')
-        sa.href = m.link || '#'; sa.target = '_blank'; sa.rel = 'noopener noreferrer'
+        sa.href = safeHref(m.link); sa.target = '_blank'; sa.rel = 'noopener noreferrer'
         sa.textContent = txt(m) || '(无文本)'
         if (cfg.mark && isImp(m)) sa.className = 'imp'
         sb.appendChild(sa)
@@ -604,9 +606,15 @@ async function openCfg() {
   const box = $('#cfgSrcs'); box.textContent = ''
   for (const s of SOURCES) {
     const row = document.createElement('div'); row.className = 'row2'
-    row.innerHTML = `<label><input type="checkbox" data-src="${s.id}" ${cfg.hide[s.id] ? '' : 'checked'}> ${s.name}</label>
-      <span style="flex:1"></span><span style="opacity:.55">短标</span>
-      <input type="text" data-alias="${s.id}" value="${cfg.alias[s.id] || s.short}" maxlength="6">`
+    const label = document.createElement('label')
+    const cb = document.createElement('input')
+    cb.type = 'checkbox'; cb.dataset.src = s.id; cb.checked = !cfg.hide[s.id]
+    label.append(cb, document.createTextNode(` ${s.name}`))
+    const gap = document.createElement('span'); gap.style.flex = '1'
+    const hint = document.createElement('span'); hint.style.opacity = '.55'; hint.textContent = '短标'
+    const alias = document.createElement('input')
+    alias.type = 'text'; alias.dataset.alias = s.id; alias.value = cfg.alias[s.id] || s.short; alias.maxLength = 6
+    row.append(label, gap, hint, alias)
     box.appendChild(row)
   }
   $('#cfgMark').checked = cfg.mark

@@ -1,6 +1,6 @@
 /** 六个真实端点冒烟：node fetch 全链路（含 cls 签名、jin10 x-app-id 提取）。
  *  用法: node test/smoke.mjs [方法名前缀过滤] */
-const { createFetcher } = await import('/Volumes/2t/code/dsh-rss-news-daily/lib/core/fetcher.js')
+const { createFetcher } = await import('dsh-rss-news-daily')
 
 const kvStore = new Map()
 const ctx = {

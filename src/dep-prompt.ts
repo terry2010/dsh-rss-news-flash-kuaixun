@@ -15,7 +15,7 @@
  * （含「稍后」）即写——客户端只在用户点按钮时才发 dismiss，单纯刷新不算。
  */
 
-import { mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { resolveDataDir } from './db.js'
@@ -49,10 +49,15 @@ export function readDepState(dataDir: string): DepState {
 }
 
 function writeDepState(dataDir: string, patch: DepState): void {
+  const tmp = `${statePath(dataDir)}.${process.pid}.tmp`
   try {
     mkdirSync(dataDir, { recursive: true })
-    writeFileSync(statePath(dataDir), JSON.stringify({ ...readDepState(dataDir), ...patch }))
-  } catch { /* flag 写失败不致命——下次启动再弹 */ }
+    writeFileSync(tmp, JSON.stringify({ ...readDepState(dataDir), ...patch }))
+    renameSync(tmp, statePath(dataDir)) // 原子替换——进程中断不会留下半个 JSON
+  } catch {
+    try { rmSync(tmp, { force: true }) } catch { /* ignore */ }
+    /* flag 写失败不致命——下次启动再弹 */
+  }
 }
 
 /**

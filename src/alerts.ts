@@ -19,7 +19,7 @@
  * 旧格式只有 keywords 时迁移为 keyword=有词即开，important/multi 默认关。
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { resolveDataDir } from './db.js'
 
@@ -94,7 +94,14 @@ export function openAlertStore(dir = resolveDataDir()): AlertStore {
   }
   const write = (c: AlertConfig) => {
     mkdirSync(dir, { recursive: true })
-    writeFileSync(file, JSON.stringify(c, null, 2))
+    const tmp = `${file}.${process.pid}.tmp`
+    try {
+      writeFileSync(tmp, JSON.stringify(c, null, 2))
+      renameSync(tmp, file) // 原子替换——进程中断不会留下半个 JSON
+    } catch (e) {
+      try { rmSync(tmp, { force: true }) } catch { /* ignore */ }
+      throw e
+    }
   }
   return {
     config: read,

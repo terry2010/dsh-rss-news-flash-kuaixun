@@ -128,7 +128,7 @@ export class KxDb {
   }
 
   /** 批量入库；返回真正新插入的行（INSERT OR IGNORE changes>0）——去重+「新条目」判定一体 */
-  insert(srcId: string, title: string, items: KxItem[]): StoredItem[] {
+  insert(srcId: string, items: KxItem[]): StoredItem[] {
     if (!items.length) return []
     const now = new Date().toISOString()
     const ins = this.db.prepare(`INSERT OR IGNORE INTO items

@@ -147,7 +147,7 @@ function bootstrap(ctx: Context, log: ReturnType<Context['logger']>) {
     try {
       // 各源新条目先全部入库，再统一过提醒——同批跨源报道才能互相命中「多源」
       const batch: AlertItem[] = []
-      await Promise.allSettled(sources.sources.map(async (d) => {
+      const rs = await Promise.allSettled(sources.sources.map(async (d) => {
         const bo = backoff.get(d.url)
         if (bo && Date.now() < bo.nextAt) return
         const h = handlers.get(d.method ?? '')
@@ -164,7 +164,7 @@ function bootstrap(ctx: Context, log: ReturnType<Context['logger']>) {
         }
         if (bo?.streak) log.info(`${d.title} recovered after ${bo.streak} failure(s)`)
         backoff.delete(d.url)
-        const fresh = db.insert(d.url, d.title, items)
+        const fresh = db.insert(d.url, items)
         if (!db.baseline(d.url)) { db.markBaseline(d.url); return } // 首跑基线：只入库不告警
         for (const it of fresh) {
           batch.push({
@@ -173,7 +173,14 @@ function bootstrap(ctx: Context, log: ReturnType<Context['logger']>) {
           })
         }
       }))
+      // 入库/基线异常（含 dispose 在途撞上 db 已关）——记日志下轮再来，不静默
+      for (const r of rs) {
+        if (r.status === 'rejected') log.warn(`poll task failed: ${(r.reason as Error)?.message ?? String(r.reason)}`)
+      }
       alerter.check(batch)
+    } catch (e) {
+      // 兜底：告警/库层面异常绝不外溢成 unhandledRejection（void poll() 无人接）
+      log.warn(`poll round failed: ${(e as Error).message}`)
     } finally { running = false }
   }
 

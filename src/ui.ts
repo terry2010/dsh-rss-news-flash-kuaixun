@@ -84,14 +84,15 @@ export function mountUi(ws: WebServerLike, log: Log, alerts: AlertStore, db: KxD
       handler: guard((req, res) => {
         const u = new URL(req.url || '', 'http://x')
         const sp = u.searchParams
+        const page = Math.max(1, Number(sp.get('page')) || 1)
+        const pageSize = Math.min(100, Math.max(1, Number(sp.get('pageSize')) || 50))
         const r = db.query({
           source: sp.get('source') || undefined,
           q: (sp.get('q') || '').toLowerCase() || undefined,
           after: sp.get('after') || undefined,
           before: sp.get('before') || undefined,
           sort: sp.get('sort') || undefined,
-          page: Number(sp.get('page')) || 1,
-          pageSize: Number(sp.get('pageSize')) || 50,
+          page, pageSize,
         })
         const items = r.items.map((it) => ({
           id: it.id, sourceId: it.sourceId, title: it.title, link: it.link,
@@ -99,11 +100,12 @@ export function mountUi(ws: WebServerLike, log: Log, alerts: AlertStore, db: KxD
           publishedAt: it.publishedAt, fetchedAt: it.fetchedAt,
           state: { hot: it.hot === 1 }, tags: it.tags, market: it.market,
         }))
-        json(res, 200, { ok: true, total: r.total, page: Number(sp.get('page')) || 1, pageSize: 50, items })
+        json(res, 200, { ok: true, total: r.total, page, pageSize, items })
       }),
     }),
     // 提醒配置：GET 读全量 {keywords,keyword,important,multi}；
-    // POST 部分更新——字段缺省不动（关开关不会清关键字，词只有用户能删）
+    // POST 部分更新——字段缺省不动（关开关不会清关键字，词只有用户能删）；
+    // 要求 JSON content-type：非简单请求跨站过不了 preflight，与 dep dismiss 同一 CSRF 口径
     ws.register({
       kind: 'exact', path: `${BASE}/api/alerts`,
       handler: guard(async (req, res) => {
@@ -112,6 +114,8 @@ export function mountUi(ws: WebServerLike, log: Log, alerts: AlertStore, db: KxD
           return json(res, 200, { keywords: c.keywords, keyword: c.keyword, important: c.important, multi: c.multi })
         }
         if (req.method === 'POST') {
+          const ct = String(req.headers?.['content-type'] || '')
+          if (!ct.includes('application/json')) return json(res, 403, { error: 'json content-type required' })
           const body = JSON.parse((await readBody(req)) || '{}') as {
             keywords?: unknown; keyword?: unknown; important?: unknown; multi?: unknown
           }
