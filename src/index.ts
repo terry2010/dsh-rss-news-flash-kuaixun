@@ -8,7 +8,9 @@
  *
  * 存储完全独立：条目/源定义/游标全在 companions/news-kuaixun/kuaixun.db，
  * 不进主插件 store.db。启动时调 rndSources.removeSources 清掉历史注入数据。
- * 仍消费 rndSources 的 notify（桌面通知）与 registerView（阅读器 tab）。
+ * 仍消费 rndSources 的 notify（桌面通知）与 registerView（阅读器 tab）；
+ * apiVersion≥2 时另经 registerBriefType 挂「快讯快报」条目供给器，
+ * 让主插件快报产线（调度/AI概括/落盘/合并视图）直接吃 KxDb 窗口数据。
  *
  * browserFetch 为可选依赖（ctx.inject 动态）——装了 dsh-rss-news-browser-fetch 时
  * node fetch 失败的请求自动回落专用 Chrome 页面内 fetch；未装则纯 node。
@@ -21,6 +23,7 @@ import { createFetcher, type MethodCtx, type MethodHandler, type RawItem, type S
 import { KxDb, resolveDataDir } from './db.js'
 import { mountUi, type WebServerLike } from './ui.js'
 import { createAlerter, openAlertStore, type AlertItem } from './alerts.js'
+import { briefDef, briefItems } from './brief.js'
 import { similarTitle } from './similar.js'
 import type { BrowserFetchLike } from './transport.js'
 import { cls } from './methods/cls.js'
@@ -148,6 +151,13 @@ export function apply(ctx: Context) {
 
   // 阅读器「快讯」tab：ticker 视图（密排时序流，数据走本插件 /api/items）
   ctx.rndSources.registerView(name, { id: 'kuaixun', title: '快讯', url: '/dsh-news-kuaixun/' })
+
+  // 「快讯快报」类型：条目供给器挂 KxDb 窗口——调度/AI概括/落盘/合并视图/通知全走主插件产线
+  if (ctx.rndSources.apiVersion >= 2) {
+    ctx.rndSources.registerBriefType(name, briefDef(sources.sources), { items: async (since) => briefItems(db, since) })
+  } else {
+    log.warn('rndSources apiVersion < 2: 快讯快报未注册（升级 dsh-rss-news-daily）')
+  }
   ctx.inject(['webServer'], (c) => {
     const dispose = mountUi((c as unknown as { webServer: WebServerLike }).webServer, log, alerts, db)
     c.effect(() => dispose)

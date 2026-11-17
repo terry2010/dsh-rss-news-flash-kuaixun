@@ -6,4 +6,9 @@
  */
 /** 两条标题是否像同一事件（跨源多报）。 */
 export declare function similarTitle(a: string, b: string): boolean;
+/**
+ * 窗口内同事件聚类（并查集）——与 web/index.html clusterize 同分组语义、
+ * 同阈值同一套归一化/bigram 原语；簇代表由调用方挑（前端 hot>长>晚）。
+ */
+export declare function clusterTitles<T>(items: T[], titleOf: (it: T) => string): T[][];
 //# sourceMappingURL=similar.d.ts.map

@@ -31,3 +31,32 @@ export function similarTitle(a: string, b: string): boolean {
   const th = Math.min(na.length, nb.length) < SHORT_LEN ? SIM_SHORT : SIM_LOOSE
   return dice(bigrams(na), bigrams(nb)) >= th
 }
+
+/**
+ * 窗口内同事件聚类（并查集）——与 web/index.html clusterize 同分组语义、
+ * 同阈值同一套归一化/bigram 原语；簇代表由调用方挑（前端 hot>长>晚）。
+ */
+export function clusterTitles<T>(items: T[], titleOf: (it: T) => string): T[][] {
+  const n = items.length
+  if (!n) return []
+  const norms = items.map((it) => normTitle(titleOf(it)))
+  const grams = norms.map(bigrams)
+  const parent = items.map((_, i) => i)
+  const find = (x: number): number => (parent[x] === x ? x : (parent[x] = find(parent[x])))
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const a = grams[i], b = grams[j]
+      if (!a.size || !b.size) continue
+      const th = Math.min(norms[i].length, norms[j].length) < SHORT_LEN ? SIM_SHORT : SIM_LOOSE
+      if (dice(a, b) >= th) parent[find(i)] = find(j)
+    }
+  }
+  const groups = new Map<number, T[]>()
+  items.forEach((it, i) => {
+    const r = find(i)
+    const g = groups.get(r)
+    if (g) g.push(it)
+    else groups.set(r, [it])
+  })
+  return [...groups.values()]
+}
