@@ -31,8 +31,8 @@ type Log = { info(msg: string): void; warn(msg: string): void }
 export const DEP_PKG = 'dsh-rss-news-daily'
 export const DEP_SELF = 'dsh-rss-news-flash-kuaixun'
 export const DEP_GITHUB = 'https://github.com/terry2010/dsh-rss-news-daily'
-/** 卸载调查占位：上线前换成正式表单页（卸载教程 + 卸载原因问卷） */
-export const DEP_UNINSTALL_URL = 'https://baidu.com'
+/** 卸载指引：GitHub Discussion（卸载教程 + 意见收集帖） */
+export const DEP_UNINSTALL_URL = 'https://github.com/terry2010/dsh-rss-news-flash-kuaixun/discussions/2'
 export const DEP_BASE = '/dsh-rss-news-flash-kuaixun'
 
 function statePath(dataDir: string): string {
@@ -161,7 +161,7 @@ export function depStatus(deps: DepStatusDeps): Record<string, unknown> {
     selfPkg: DEP_SELF,
     github: DEP_GITHUB,
     uninstallUrl: DEP_UNINSTALL_URL,
-    installCmd: `dsh plugin --profile ${profile?.name ?? 'desktop'} add <路径>`,
+    installCmd: `dsh plugin --profile ${profile?.name ?? 'desktop'} add ${DEP_PKG}`,
     removeCmd: `dsh plugin --profile ${profile?.name ?? 'desktop'} remove ${DEP_SELF}`,
   }
 }

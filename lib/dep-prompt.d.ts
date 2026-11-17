@@ -26,8 +26,8 @@ type Log = {
 export declare const DEP_PKG = "dsh-rss-news-daily";
 export declare const DEP_SELF = "dsh-rss-news-flash-kuaixun";
 export declare const DEP_GITHUB = "https://github.com/terry2010/dsh-rss-news-daily";
-/** 卸载调查占位：上线前换成正式表单页（卸载教程 + 卸载原因问卷） */
-export declare const DEP_UNINSTALL_URL = "https://baidu.com";
+/** 卸载指引：GitHub Discussion（卸载教程 + 意见收集帖） */
+export declare const DEP_UNINSTALL_URL = "https://github.com/terry2010/dsh-rss-news-flash-kuaixun/discussions/2";
 export declare const DEP_BASE = "/dsh-rss-news-flash-kuaixun";
 export declare function readDepState(dataDir: string): DepState;
 /**
