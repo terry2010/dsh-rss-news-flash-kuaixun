@@ -13,12 +13,57 @@ const DOMAIN = 'flash-api.jin10.com'
 const SITE = 'https://www.jin10.com'
 const API = `https://${DOMAIN}/get_flash_list?channel=-8200&limit=50`
 
+interface J10Data {
+  content?: string
+  source_link?: string
+  link?: string                 // type2 xnews 长文详情
+  title?: string                // type2 长文标题
+  tag?: string                  // type2 栏目标签（'财报前瞻'…）
+  pic?: string
+  lock?: boolean                // VIP/PLUS 付费锁定——content 为空是常态
+  exclusive_to?: string[]       // ['plus'] | ['vip']
+  vip_title?: string            // 锁定条目的真实标题
+  vip_desc?: string             // 'PLUS专享快讯，解锁直达'
+  // type1 财经数据结构化字段（无 content，按官方「公布/预期/前值」拼文）
+  country?: string; name?: string; dataname?: string
+  actual?: number | string | null; consensus?: number | string | null
+  previous?: number | string | null; revision?: number | string | null
+  unit?: string
+}
+
 interface J10Item {
   id: string
   time: string                  // 'YYYY-MM-DD HH:mm:ss' 北京时间
+  type?: number                 // 0=快讯 1=财经数据 2=xnews长文
   important?: number            // 1=加红
   channel?: number[]
-  data?: { content?: string; source_link?: string; link?: string }
+  extras?: { ad?: boolean }
+  data?: J10Data
+}
+
+/** 各形态条目 → 展示文本。导出给测试 */
+export function j10Text(i: J10Item): { title: string; content: string; tag?: string } {
+  const d = i.data ?? {}
+  const html = stripTags(d.content ?? '')
+  if (d.lock) {
+    const tier = d.exclusive_to?.includes('plus') ? 'PLUS' : 'VIP'
+    const t = (d.vip_title ?? '').trim()
+    const text = `【${tier}】${t || d.vip_desc || '专享快讯'}`
+    return { title: text.slice(0, 120), content: text }
+  }
+  if (html) return { title: (i.type === 2 ? stripTags(d.title ?? '') : '') || html.slice(0, 120), content: html, tag: d.tag }
+  if (i.type === 1) {
+    const seg = [
+      d.actual != null && `公布${d.actual}${d.unit ?? ''}`,
+      d.consensus != null && `预期${d.consensus}`,
+      d.previous != null && `前值${d.previous}`,
+      d.revision != null && `修正${d.revision}`,
+    ].filter(Boolean).join('，')
+    const head = `${d.country ?? ''}${d.name ?? d.dataname ?? ''}`.trim() || '财经数据'
+    const text = seg ? `${head} ${seg}` : head
+    return { title: text.slice(0, 120), content: text }
+  }
+  return { title: '', content: '' }
 }
 
 async function extractAppId(ctx: Parameters<MethodHandler>[1], bf: Bf): Promise<string | undefined> {
@@ -63,18 +108,18 @@ export const jin10 = (bf: Bf): MethodHandler => async (src, ctx) => {
   const data = JSON.parse(doc.body) as { status?: number; data?: J10Item[] }
   const items = Array.isArray(data.data) ? data.data : []
   markAuth(bf(), DOMAIN, false)
-  return items.map((i): KxItem => {
-    const title = stripTags(i.data?.content ?? '').slice(0, 120)
+  return items.filter((i) => !i.extras?.ad).map((i): KxItem => {
+    const { title, content, tag } = j10Text(i)
     return {
       id: `j10_${i.id}`,
       title,
       // data.link=xnews 长文详情（type2）；source_link=外部原文；兜底=金十自家快讯详情页
       link: i.data?.link || i.data?.source_link || `${SITE}/flash/detail/${i.id}`,
-      content: stripTags(i.data?.content ?? ''),
+      content,
       publishedAt: cst(i.time),
       hot: i.important === 1, // 加红
-      tags: jin10TagNames(i.channel),
+      tags: [...jin10TagNames(i.channel), ...(tag ? [tag] : [])],
       market: jin10Market(i.channel, title),
     }
-  })
+  }).filter((i) => i.title !== '')
 }

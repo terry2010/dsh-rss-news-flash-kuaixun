@@ -89,6 +89,8 @@ export class KxDb {
     )
     if (!cols.has('tags')) this.db.exec("ALTER TABLE items ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
     if (!cols.has('market')) this.db.exec("ALTER TABLE items ADD COLUMN market TEXT NOT NULL DEFAULT ''")
+    // 清理历史垃圾行：早期 adapter 把无文本条目（金十 type1数据/VIP锁定）存成了空 title+content
+    this.db.exec("DELETE FROM items WHERE title='' AND (content IS NULL OR content='')")
   }
 
   /** 存量条目补 market：无原生信号的按标题关键词+源默认气质估一遍 */
