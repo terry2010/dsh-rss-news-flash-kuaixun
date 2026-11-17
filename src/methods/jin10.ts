@@ -17,7 +17,7 @@ interface J10Item {
   time: string                  // 'YYYY-MM-DD HH:mm:ss' 北京时间
   important?: number            // 1=加红
   channel?: number[]
-  data?: { content?: string; source_link?: string }
+  data?: { content?: string; source_link?: string; link?: string }
 }
 
 async function extractAppId(ctx: Parameters<MethodHandler>[1], bf: Bf): Promise<string | undefined> {
@@ -65,7 +65,8 @@ export const jin10 = (bf: Bf): MethodHandler => async (src, ctx) => {
   return items.map((i): RawItem => ({
     id: `j10_${i.id}`,
     title: stripTags(i.data?.content ?? '').slice(0, 120),
-    link: i.data?.source_link || `${SITE}/`,
+    // data.link=xnews 长文详情（type2）；source_link=外部原文；兜底=金十自家快讯详情页
+    link: i.data?.link || i.data?.source_link || `${SITE}/flash/detail/${i.id}`,
     content: stripTags(i.data?.content ?? ''),
     publishedAt: cst(i.time),
     hot: i.important === 1, // 加红

@@ -19,7 +19,7 @@ interface ClsItem {
   brief?: string
   content: string
   ctime: number          // 秒
-  level?: number         // 加红电报 level 更高
+  level?: string         // 字母等级：A/B=加红高亮（官网前端 fillStyle 特判），C=普通
   is_ad?: number
   shareurl?: string
 }
@@ -54,6 +54,6 @@ export const cls = (bf: Bf): MethodHandler => async (src, ctx) => {
     link: i.shareurl || `https://${DOMAIN}/detail/${i.id}`,
     content: stripTags(i.content),
     publishedAt: new Date(i.ctime * 1000).toISOString(),
-    hot: (i.level ?? 0) >= 1, // 加红/加级电报
+    hot: i.level === 'A' || i.level === 'B', // 加红/加级电报（level 是字母不是数字）
   }))
 }
