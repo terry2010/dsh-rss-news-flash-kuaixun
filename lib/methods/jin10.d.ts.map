@@ -1,1 +1,1 @@
-{"version":3,"file":"jin10.d.ts","sourceRoot":"","sources":["../../src/methods/jin10.ts"],"names":[],"mappings":"AAAA;;;;GAIG;AAEH,OAAO,KAAK,EAAE,aAAa,EAAW,MAAM,oBAAoB,CAAA;AAChE,OAAO,EAAwC,KAAK,EAAE,EAAY,MAAM,iBAAiB,CAAA;AA2CzF,eAAO,MAAM,KAAK,GAAI,IAAI,EAAE,KAAG,aAuB9B,CAAA"}
+{"version":3,"file":"jin10.d.ts","sourceRoot":"","sources":["../../src/methods/jin10.ts"],"names":[],"mappings":"AAAA;;;;GAIG;AAEH,OAAO,KAAK,EAAE,aAAa,EAAE,MAAM,oBAAoB,CAAA;AACvD,OAAO,EAAwC,KAAK,EAAE,EAAY,MAAM,iBAAiB,CAAA;AA4CzF,eAAO,MAAM,KAAK,GAAI,IAAI,EAAE,KAAG,aA4B9B,CAAA"}

@@ -76,6 +76,11 @@
   .src.multi .tot { display: inline-block; font-weight: 700; padding: 0 4px; margin-right: 4px; border-radius: 3px; background: #2f6feb; color: #fff; }
   /* 展开态第 1 行的本源徽标：与 .tot 同色系的浅色 chip */
   .src.multi .own { display: inline-block; font-weight: 600; padding: 0 4px; margin-right: 4px; border-radius: 3px; background: color-mix(in srgb, Canvas 22%, transparent); }
+  /* 市场域/栏目标签 chips（源标与标题之间） */
+  .tags { flex: none; display: inline-flex; gap: 3px; align-items: center; align-self: center; min-width: 0; max-width: 16%; overflow: hidden; }
+  .tags .mkt { flex: none; font-size: .72em; font-weight: 600; padding: 0 4px; border-radius: 3px; white-space: nowrap; background: color-mix(in srgb, #d45500 13%, transparent); color: #d45500; }
+  .tags .ctag { font-size: .72em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: color-mix(in srgb, CanvasText 52%, transparent); }
+  .row.sub .tags .mkt, .row.sub .tags .ctag { font-size: .66em; }
   /* 聚合簇展开后的各源子行 */
   .row.sub { padding-left: 58px; background: color-mix(in srgb, CanvasText 3%, transparent); }
   .row.sub .t, .row.sub .src { font-size: .8em; }
@@ -149,6 +154,12 @@
 <div class="bar">
   <b>快讯</b>
   <select id="srcSel" title="只看某个快讯源"><option value="">全部源</option></select>
+  <select id="mktSel" title="按市场域筛选">
+    <option value="">全部市场</option>
+    <option value="A股">A股</option><option value="港股">港股</option><option value="美股">美股</option>
+    <option value="商品">商品</option><option value="外汇">外汇</option><option value="加密">加密</option>
+    <option value="国际">国际</option><option value="其他">其他</option>
+  </select>
   <input id="kw" type="search" placeholder="搜索快讯…" title="搜索标题/摘要（库内全量，Esc 清空）" autocomplete="off">
   <select id="range" title="搜索时间范围（仅搜索时生效）">
     <option value="today">今天</option><option value="yesterday">昨天</option>
@@ -216,6 +227,7 @@ const cfg = {
     const v = String(store.get('src', ''))
     return SOURCES.find((s) => s.id === v || s.id.replace(/\/$/, '') === v.replace(/\/$/, ''))?.id ?? ''
   },            // '' = 全部源
+  get market() { return String(store.get('market', '')) }, // '' = 全部市场
   get modes() { // 多选过滤集：[] = 全部；旧版单选字符串自动迁移
     const v = store.get('mode', 'all')
     if (Array.isArray(v)) return v.filter((m) => m === 'imp' || m === 'multi')
@@ -340,8 +352,28 @@ async function load() {
   return clusterize(uniqById(pages.flatMap((x) => x.items || [])).sort(byTimeDesc))
 }
 
-// visSrcs：簇内未被「显示源」隐藏的源集合——空=整簇隐藏；multi 计数按它算
-const visSrcs = (c) => [...new Set(c.items.map((m) => m.sourceId).filter((s) => !cfg.hide[s]))]
+// 标签 chips：市场域 chip（与原生 tag 同名时去重）+ 首个源原生栏目名（悬停看全量）
+const tagChips = (m) => {
+  const mk = m.market
+  const show = (Array.isArray(m.tags) ? m.tags : []).filter((x) => x && x !== mk)
+  if ((!mk || mk === '其他') && !show.length) return null
+  const el = document.createElement('span'); el.className = 'tags'
+  if (mk && mk !== '其他') {
+    const me = document.createElement('span'); me.className = 'mkt'; me.textContent = mk; el.appendChild(me)
+  }
+  if (show.length) {
+    const te = document.createElement('span'); te.className = 'ctag'
+    te.textContent = show[0] + (show.length > 1 ? `+${show.length - 1}` : '')
+    te.title = show.join('、')
+    el.appendChild(te)
+  }
+  return el
+}
+
+// visItems：簇内未被「显示源」隐藏且命中市场域筛选的成员——隐藏/过滤语义同层
+const visItems = (c) => c.items.filter((m) => !cfg.hide[m.sourceId] && (!cfg.market || m.market === cfg.market))
+// visSrcs：可见成员的源集合——空=整簇隐藏；multi 计数按它算
+const visSrcs = (c) => [...new Set(visItems(c).map((m) => m.sourceId))]
 
 function render(clusters, markFresh = true) {
   const vis = clusters.filter((c) => {
@@ -391,7 +423,7 @@ function render(clusters, markFresh = true) {
     const s = document.createElement('span')
     // 按源计数：多源簇显示「6条 财联社×3 同花顺×2 新浪」式——总数在前、逐源分布在后
     const cnt = new Map()
-    for (const m of c.items) if (!cfg.hide[m.sourceId]) cnt.set(m.sourceId, (cnt.get(m.sourceId) ?? 0) + 1)
+    for (const m of visItems(c)) cnt.set(m.sourceId, (cnt.get(m.sourceId) ?? 0) + 1)
     if (cnt.size > 1) {
       const total = [...cnt.values()].reduce((a, b) => a + b, 0)
       s.className = 'src multi'
@@ -430,11 +462,14 @@ function render(clusters, markFresh = true) {
     a.href = rep.link || '#'; a.target = '_blank'; a.rel = 'noopener noreferrer'
     a.textContent = txt(rep) || '(无文本)'
     if (cfg.mark && c.hot) a.className = 'imp'
-    b.appendChild(a); row.append(t, s, b); list.appendChild(row)
+    b.appendChild(a)
+    const tc = tagChips(rep)
+    tc ? row.append(t, s, tc, b) : row.append(t, s, b)
+    list.appendChild(row)
     addBody(rep, b)
     // 展开态：簇内其余成员各一行（rep 行本身就是代表，不重复列）
     if (expanded.has(rep.id)) {
-      for (const m of c.items.filter((x) => x !== rep && !cfg.hide[x.sourceId]).sort(byTimeDesc)) {
+      for (const m of visItems(c).filter((x) => x !== rep).sort(byTimeDesc)) {
         const sr = document.createElement('div'); sr.className = 'row sub'
         const st = document.createElement('span'); st.className = 't'; st.textContent = hm(m.publishedAt || m.fetchedAt)
         const ss = document.createElement('span'); ss.className = 'src'; ss.textContent = shortOf(m.sourceId)
@@ -443,7 +478,10 @@ function render(clusters, markFresh = true) {
         sa.href = m.link || '#'; sa.target = '_blank'; sa.rel = 'noopener noreferrer'
         sa.textContent = txt(m) || '(无文本)'
         if (cfg.mark && isImp(m)) sa.className = 'imp'
-        sb.appendChild(sa); sr.append(st, ss, sb); list.appendChild(sr)
+        sb.appendChild(sa)
+        const tc2 = tagChips(m)
+        tc2 ? sr.append(st, ss, tc2, sb) : sr.append(st, ss, sb)
+        list.appendChild(sr)
         addBody(m, sb)
       }
     }
@@ -466,6 +504,7 @@ async function tick(markFresh = true) {
 // ---- 控件 ----
 $('#btnNow').addEventListener('click', () => tick())
 $('#srcSel').addEventListener('change', (e) => { store.set('src', e.target.value); tick(false) })
+$('#mktSel').addEventListener('change', (e) => { store.set('market', e.target.value); render(lastItems) })
 // 搜索：防抖 300ms 走后端；Esc 清空。range 只在 kw 非空时参与 load()
 $('#kw').addEventListener('input', (e) => {
   clearTimeout(kwTimer)
@@ -615,6 +654,7 @@ for (const s of SOURCES) {
   $('#srcSel').appendChild(o)
 }
 $('#srcSel').value = cfg.src
+$('#mktSel').value = cfg.market
 $('#range').value = range; $('#from').value = customFrom; $('#to').value = customTo; applyRangeUI()
 $('#ivMin').value = cfg.ivMin
 $('#autoTgl').checked = cfg.auto

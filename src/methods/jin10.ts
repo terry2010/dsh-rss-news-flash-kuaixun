@@ -4,9 +4,10 @@
  * 接口/字段见 docs/SOURCES-FLASH-NEWS.md §1.2（实测 200）。
  */
 
-import type { MethodHandler, RawItem } from 'dsh-rss-news-daily'
+import type { MethodHandler } from 'dsh-rss-news-daily'
 import { getDoc, looksLikeChallenge, markAuth, type Bf, type Doc } from '../transport.js'
 import { cst, stripTags } from './util.js'
+import { jin10Market, jin10TagNames, type KxItem } from '../taxonomy.js'
 
 const DOMAIN = 'flash-api.jin10.com'
 const SITE = 'https://www.jin10.com'
@@ -62,13 +63,18 @@ export const jin10 = (bf: Bf): MethodHandler => async (src, ctx) => {
   const data = JSON.parse(doc.body) as { status?: number; data?: J10Item[] }
   const items = Array.isArray(data.data) ? data.data : []
   markAuth(bf(), DOMAIN, false)
-  return items.map((i): RawItem => ({
-    id: `j10_${i.id}`,
-    title: stripTags(i.data?.content ?? '').slice(0, 120),
-    // data.link=xnews 长文详情（type2）；source_link=外部原文；兜底=金十自家快讯详情页
-    link: i.data?.link || i.data?.source_link || `${SITE}/flash/detail/${i.id}`,
-    content: stripTags(i.data?.content ?? ''),
-    publishedAt: cst(i.time),
-    hot: i.important === 1, // 加红
-  }))
+  return items.map((i): KxItem => {
+    const title = stripTags(i.data?.content ?? '').slice(0, 120)
+    return {
+      id: `j10_${i.id}`,
+      title,
+      // data.link=xnews 长文详情（type2）；source_link=外部原文；兜底=金十自家快讯详情页
+      link: i.data?.link || i.data?.source_link || `${SITE}/flash/detail/${i.id}`,
+      content: stripTags(i.data?.content ?? ''),
+      publishedAt: cst(i.time),
+      hot: i.important === 1, // 加红
+      tags: jin10TagNames(i.channel),
+      market: jin10Market(i.channel, title),
+    }
+  })
 }

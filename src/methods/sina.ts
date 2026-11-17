@@ -4,9 +4,10 @@
  * 接口/字段见 docs/SOURCES-FLASH-NEWS.md §1.6（实测 200）。
  */
 
-import type { MethodHandler, RawItem } from 'dsh-rss-news-daily'
+import type { MethodHandler } from 'dsh-rss-news-daily'
 import { getDoc, looksLikeChallenge, markAuth, type Bf } from '../transport.js'
 import { cst, stripTags } from './util.js'
+import { marketFromText, type KxItem } from '../taxonomy.js'
 
 const DOMAIN = 'zhibo.sina.com.cn'
 const API = `https://${DOMAIN}/api/zhibo/feed?page=1&page_size=50&zhibo_id=152&tag_id=0&type=0`
@@ -31,7 +32,7 @@ export const sina = (bf: Bf): MethodHandler => async (src, ctx) => {
   const data = JSON.parse(doc.body) as { result?: { data?: { feed?: { list?: SinaItem[] } } } }
   const items = data.result?.data?.feed?.list ?? []
   markAuth(bf(), DOMAIN, false)
-  return items.map((i): RawItem => {
+  return items.map((i): KxItem => {
     const text = stripTags(i.rich_text ?? '')
     return {
       id: `sina_${i.id ?? i.docurl ?? i.link ?? text.slice(0, 30)}`,
@@ -39,6 +40,8 @@ export const sina = (bf: Bf): MethodHandler => async (src, ctx) => {
       link: i.docurl || i.link || 'https://finance.sina.com.cn/7x24/',
       content: text,
       publishedAt: i.create_time ? cst(i.create_time) : new Date().toISOString(),
+      tags: (i.tag ?? []).map((t) => t.name ?? '').filter(Boolean),
+      market: marketFromText(text, '国际'), // sina 7x24 主体是全球市场直播
     }
   }).filter((i) => i.title.length > 0)
 }

@@ -4,9 +4,10 @@
  * 接口/字段见 docs/SOURCES-FLASH-NEWS.md §1.5（实测 200）。
  */
 
-import type { MethodHandler, RawItem } from 'dsh-rss-news-daily'
+import type { MethodHandler } from 'dsh-rss-news-daily'
 import { getDoc, looksLikeChallenge, markAuth, type Bf } from '../transport.js'
 import { stripTags } from './util.js'
+import { thsMarket, type KxItem } from '../taxonomy.js'
 
 const DOMAIN = 'news.10jqka.com.cn'
 const API = `https://${DOMAIN}/tapp/news/push/stock?page=1&tag=&track=website&pagesize=50`
@@ -19,7 +20,8 @@ interface ThsItem {
   ctime?: number | string  // 秒
   color?: number           // 2=重要
   url?: string
-  tags?: string[]
+  tags?: Array<{ id?: string; name?: string }>    // 市场标签（美股/港股/A股…）
+  tagInfo?: Array<{ name?: string; score?: string | number }> // 实体标签（小米汽车/商品召回，带 score）
 }
 
 export const ths = (bf: Bf): MethodHandler => async (src, ctx) => {
@@ -33,16 +35,21 @@ export const ths = (bf: Bf): MethodHandler => async (src, ctx) => {
   const data = JSON.parse(doc.body) as { data?: { list?: ThsItem[] } }
   const items = data.data?.list ?? []
   markAuth(bf(), DOMAIN, false)
-  return items.map((i): RawItem => {
+  return items.map((i): KxItem => {
     const id = i.seq ?? i.id ?? ''
     const ctime = typeof i.ctime === 'string' ? Number(i.ctime) : i.ctime
+    const title = stripTags(i.title || i.digest || '').slice(0, 120)
+    const names = (i.tags ?? []).map((t) => t.name ?? '').filter(Boolean)
+    const entities = (i.tagInfo ?? []).slice(0, 3).map((t) => t.name ?? '').filter(Boolean)
     return {
       id: `ths_${id}`,
-      title: stripTags(i.title || i.digest || '').slice(0, 120),
+      title,
       link: i.url || `https://${DOMAIN}/`,
       content: stripTags(i.digest || i.title || ''),
       publishedAt: ctime ? new Date(ctime * 1000).toISOString() : new Date().toISOString(),
       hot: i.color === 2, // 重要标红
+      tags: [...names, ...entities],
+      market: thsMarket(names, title),
     }
   }).filter((i) => i.id !== 'ths_')
 }

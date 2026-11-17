@@ -6,9 +6,10 @@
  * 新条目靠 items.id（cls_<id>）由 db INSERT OR IGNORE 去重。
  */
 
-import type { MethodHandler, RawItem } from 'dsh-rss-news-daily'
+import type { MethodHandler } from 'dsh-rss-news-daily'
 import { getDoc, looksLikeChallenge, markAuth, type Bf } from '../transport.js'
 import { md5, qs, sha1, stripTags } from './util.js'
+import { clsMarket, type KxItem } from '../taxonomy.js'
 
 const DOMAIN = 'www.cls.cn'
 const API = `https://${DOMAIN}/v1/roll/get_roll_list`
@@ -22,6 +23,8 @@ interface ClsItem {
   level?: string         // 字母等级：A/B=加红高亮（官网前端 fillStyle 特判），C=普通
   is_ad?: number
   shareurl?: string
+  subjects?: Array<{ subject_name?: string }> // 栏目与主题混放（盘面直播/环球市场情报/俄乌冲突快报…）
+  tags?: Array<{ name?: string }>
 }
 
 export const cls = (bf: Bf): MethodHandler => async (src, ctx) => {
@@ -48,12 +51,19 @@ export const cls = (bf: Bf): MethodHandler => async (src, ctx) => {
   if (data.errno !== 0) throw new Error(`cls errno ${data.errno}`)
   const items = data.data?.roll_data ?? []
   markAuth(bf(), DOMAIN, false)
-  return items.filter((i) => !i.is_ad).map((i): RawItem => ({
-    id: `cls_${i.id}`,
-    title: stripTags(i.brief || i.content).slice(0, 120),
-    link: i.shareurl || `https://${DOMAIN}/detail/${i.id}`,
-    content: stripTags(i.content),
-    publishedAt: new Date(i.ctime * 1000).toISOString(),
-    hot: i.level === 'A' || i.level === 'B', // 加红/加级电报（level 是字母不是数字）
-  }))
+  return items.filter((i) => !i.is_ad).map((i): KxItem => {
+    const title = stripTags(i.brief || i.content).slice(0, 120)
+    const subj = (i.subjects ?? []).map((x) => x.subject_name ?? '').filter(Boolean)
+    const tagNames = (i.tags ?? []).map((x) => x.name ?? '').filter(Boolean)
+    return {
+      id: `cls_${i.id}`,
+      title,
+      link: i.shareurl || `https://${DOMAIN}/detail/${i.id}`,
+      content: stripTags(i.content),
+      publishedAt: new Date(i.ctime * 1000).toISOString(),
+      hot: i.level === 'A' || i.level === 'B', // 加红/加级电报（level 是字母不是数字）
+      tags: [...subj, ...tagNames],
+      market: clsMarket(subj, title),
+    }
+  })
 }

@@ -11,6 +11,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { RawItem } from 'dsh-rss-news-daily'
+import { marketGuess, type KxItem } from './taxonomy.js'
 
 /** 主插件数据目录解析（与 src/index.ts resolveDataDir 同规则） */
 export function resolveMainDataDir(): string {
@@ -34,6 +35,8 @@ export interface StoredItem {
   publishedAt: string | null
   fetchedAt: string
   hot: number
+  tags: string[]   // 源原生栏目/主题/实体名
+  market: string   // 归一市场域（A股/港股/美股/商品/外汇/加密/国际/其他/''）
 }
 
 export interface ItemQuery {
@@ -60,6 +63,11 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 
 const MAX_ITEMS = 20_000 // 独立库自管上限：快讯滚动窗口，不进主库配额
 
+const safeTags = (v: unknown): string[] => {
+  try { const a = JSON.parse(String(v ?? '[]')); return Array.isArray(a) ? a.filter((x) => typeof x === 'string') : [] }
+  catch { return [] }
+}
+
 const itemKey = (it: RawItem): string => String(it.id ?? it.link ?? it.title)
 
 export class KxDb {
@@ -70,6 +78,30 @@ export class KxDb {
     this.db = new DatabaseSync(join(dir, 'kuaixun.db'))
     this.db.exec('PRAGMA journal_mode = DELETE')
     this.db.exec(SCHEMA)
+    this.migrate()
+    this.backfillMarket()
+  }
+
+  /** 轻量列迁移：tags/market 后加列——PRAGMA 判存在，缺则 ALTER（不改 SCHEMA 保旧库） */
+  private migrate(): void {
+    const cols = new Set(
+      (this.db.prepare('PRAGMA table_info(items)').all() as Array<{ name: string }>).map((c) => c.name),
+    )
+    if (!cols.has('tags')) this.db.exec("ALTER TABLE items ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+    if (!cols.has('market')) this.db.exec("ALTER TABLE items ADD COLUMN market TEXT NOT NULL DEFAULT ''")
+  }
+
+  /** 存量条目补 market：无原生信号的按标题关键词+源默认气质估一遍 */
+  private backfillMarket(): void {
+    const rows = this.db.prepare("SELECT id, sourceId, title FROM items WHERE market=''").all() as
+      Array<{ id: string; sourceId: string; title: string }>
+    if (!rows.length) return
+    const up = this.db.prepare('UPDATE items SET market=? WHERE id=?')
+    this.db.exec('BEGIN')
+    try {
+      for (const r of rows) up.run(marketGuess(r.sourceId, r.title), r.id)
+      this.db.exec('COMMIT')
+    } catch (e) { this.db.exec('ROLLBACK'); throw e }
   }
 
   /** adapter 游标 kv（cls last_time / jin10 appid）：落 meta 表，key 前缀 kv.<srcId>. */
@@ -90,23 +122,27 @@ export class KxDb {
   }
 
   /** 批量入库；返回真正新插入的行（INSERT OR IGNORE changes>0）——去重+「新条目」判定一体 */
-  insert(srcId: string, title: string, items: RawItem[]): StoredItem[] {
+  insert(srcId: string, title: string, items: KxItem[]): StoredItem[] {
     if (!items.length) return []
     const now = new Date().toISOString()
     const ins = this.db.prepare(`INSERT OR IGNORE INTO items
-      (id,sourceId,title,link,summary,content,publishedAt,fetchedAt,hot) VALUES (?,?,?,?,?,?,?,?,?)`)
+      (id,sourceId,title,link,summary,content,publishedAt,fetchedAt,hot,tags,market) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
     const fresh: StoredItem[] = []
     this.db.exec('BEGIN')
     try {
       for (const it of items) {
+        const tags = it.tags ?? []
+        const market = it.market ?? marketGuess(srcId, it.title || '')
         const r = ins.run(
           itemKey(it), srcId, (it.title || '').slice(0, 500), it.link ?? null,
           it.summary ?? null, it.content ?? null, it.publishedAt ?? null, now, it.hot ? 1 : 0,
+          JSON.stringify(tags), market,
         )
         if (Number(r.changes) > 0) fresh.push({
           id: itemKey(it), sourceId: srcId, title: (it.title || '').slice(0, 500),
           link: it.link ?? null, summary: it.summary ?? null, content: it.content ?? null,
           publishedAt: it.publishedAt ?? null, fetchedAt: now, hot: it.hot ? 1 : 0,
+          tags, market,
         })
       }
       this.db.exec('COMMIT')
@@ -141,8 +177,8 @@ export class KxDb {
     const pageSize = Math.min(100, Math.max(1, o.pageSize ?? 50))
     const rows = this.db.prepare(
       `SELECT * FROM items ${cond} ORDER BY ${sortCol} DESC, fetchedAt DESC LIMIT ? OFFSET ?`,
-    ).all(...args, pageSize, (page - 1) * pageSize) as unknown as StoredItem[]
-    return { total, items: rows }
+    ).all(...args, pageSize, (page - 1) * pageSize) as unknown as Array<Omit<StoredItem, 'tags'> & { tags: string }>
+    return { total, items: rows.map((r) => ({ ...r, tags: safeTags(r.tags) })) }
   }
 
   close(): void { this.db.close() }
