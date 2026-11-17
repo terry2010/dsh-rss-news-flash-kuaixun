@@ -1,8 +1,8 @@
 {
   "name": "dsh-rss-news-flash-kuaixun",
   "version": "0.1.0",
-  "private": true,
-  "description": "dsh companion plugin (PRIVATE): direct first-party flash news adapters — 财联社电报/金十/华尔街见闻/东方财富/同花顺/新浪财经 7×24.",
+  "license": "Apache-2.0",
+  "description": "dsh companion plugin: real-time flash news adapters — 财联社电报/金十/华尔街见闻/东方财富/同花顺/新浪财经 7×24.",
   "type": "module",
   "main": "lib/index.js",
   "files": [
@@ -30,7 +30,7 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.1",
-    "dsh-rss-news-daily": "^1.0.0"
+    "dsh-rss-news-daily": "^1.1.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",

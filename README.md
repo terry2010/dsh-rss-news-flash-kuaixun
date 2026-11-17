@@ -1,0 +1,49 @@
+# dsh-rss-news-flash-kuaixun
+
+「快讯」—— [dsh-rss-news-daily](https://github.com/terry2010/dsh-rss-news-daily)（RSS 每日精选）的伴随插件：为主插件注入一条 **60 秒轮询的实时财经快讯流**，并复用主插件的 AI 快报产线、桌面通知与阅读器界面。
+
+> 伴随插件（companion plugin）：不能独立运行，需要主插件 `dsh-rss-news-daily ≥ 1.1.0`（rndSources API v1+；完整功能需 v2+，推荐 v3）。缺失主插件时插件会弹层提示而不会静默失效。
+
+## 功能
+
+- **六源快讯聚合**：财联社电报 / 金十数据 / 华尔街见闻 / 东方财富 / 同花顺 / 新浪财经 7×24，60 秒一轮轻量 JSON 端点轮询，写入本地 SQLite
+- **「快讯」阅读器 tab**：经 `registerView` 挂进主插件阅读器，密排时序 ticker 视图，独立于普通订阅列表
+- **多源互证标记**：同一条新闻被多个源报道时自动聚类并标注源数——互证越多越重要
+- **三通道提醒 + 桌面通知**：关键词命中 / 源标重要 / 多源互证，命中即经主插件通道弹桌面通知并跳快讯页
+- **每小时「快讯快报」**：经 `registerBriefType` 注册条目供给器，由主插件的 LLM 产线整点生成 AI 摘要（≤12 条，互证优先）；评分免 LLM——多源互证 9 > 源原生热度 8 > 普通 6
+- **数据全本地**：`companions/rss-news-flash-kuaixun/` 下的 `kuaixun.db` / `alerts.json`，随主插件完整备份覆盖
+
+## 安装
+
+```bash
+dsh plugin --profile <你的profile> add dsh-rss-news-flash-kuaixun
+```
+
+或经 dshmarket 插件市场安装。装完重启 dsh 生效；首次加载若未检测到主插件会弹层指引。
+
+## 依赖
+
+| 依赖 | 说明 |
+|---|---|
+| `dsh-rss-news-daily ≥ 1.1.0` | 宿主：提供 rndSources 服务（源注册 / 视图注册 / 快报产线 / 桌面通知） |
+| Node ≥ 22.18 | dsh 运行环境要求 |
+
+内部标识：cordis entry id 为 `rss-news-flash-kuaixun`（去 `dsh-` 前缀的惯例，同主插件 `rss-news-daily`）；数据目录 `companions/rss-news-flash-kuaixun/`，旧名 `news-kuaixun` 的目录与 provider 源行在首次启动时自动迁移。
+
+## 声明
+
+- 本插件仅从各源**公开可访问的端点**读取快讯标题与摘要，全部数据保存在用户本地，不提供转发、再分发或商用数据服务
+- 快讯原文版权归源站所有，点击条目跳转原站阅读；内容仅供参考，不构成任何投资建议
+
+## 开发
+
+```bash
+npm test                                # tsc 构建 + copy-assets + node --test
+node scripts/install-to-profile.mjs desktop   # 装进本地 dsh profile 验证（需重启 dsh）
+```
+
+技术栈：TypeScript / cordis / rndSources API v3 / better-sqlite3。主插件接口契约见主仓库 `docs/PLUGINS.md`。
+
+## License
+
+Apache-2.0
