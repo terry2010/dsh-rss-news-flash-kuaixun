@@ -25,6 +25,15 @@ export declare function wscnMarket(channels: string[] | undefined, text: string)
 export declare const wscnTagNames: (channels: string[] | undefined) => string[];
 /** 财联社 subjects 栏目名 → 市场（subjects 数组里栏目与主题混放，按名称模式判） */
 export declare function clsMarket(subjects: string[], text: string): Market;
+/**
+ * 东财 column id → 官方栏目名（官网 kuaixun.js `switch(columns)` 反查 + 实测内容验证；
+ * 100=全部/132=海外 是隐藏列不在导航；110–131 是「地区/全球央行/经济数据」三个下拉的分项。
+ * 第三方文档（OmniData/eastmoney-cli）的 fastColumn 编号是另一套接口的，勿混。
+ */
+export declare const EM_COLUMN: Record<number, string>;
+export declare function emMarket(cols: number[], text: string): Market;
+/** tags 用栏目名——滤掉无信息量的汇总列（100全部/102主快讯每条都带） */
+export declare const emTagNames: (cols: number[]) => string[];
 /** 同花顺 tag 名 → 市场（'美股,港股,A股' 市场标签直达） */
 export declare function thsMarket(tagNames: string[], text: string): Market;
 export declare function marketGuess(sourceId: string, title: string): Market;

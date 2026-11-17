@@ -76,6 +76,43 @@ export function clsMarket(subjects: string[], text: string): Market {
   return marketFromText(text, 'A股')
 }
 
+/**
+ * 东财 column id → 官方栏目名（官网 kuaixun.js `switch(columns)` 反查 + 实测内容验证；
+ * 100=全部/132=海外 是隐藏列不在导航；110–131 是「地区/全球央行/经济数据」三个下拉的分项。
+ * 第三方文档（OmniData/eastmoney-cli）的 fastColumn 编号是另一套接口的，勿混。
+ */
+export const EM_COLUMN: Record<number, string> = {
+  100: '全部', 101: '焦点', 102: '7×24', 103: '上市公司', 104: '中国股市', 105: '全球股市',
+  106: '商品', 107: '外汇', 108: '债券', 109: '基金',
+  110: '中国', 111: '美国', 112: '欧元区', 113: '英国', 114: '日本', 115: '加拿大', 116: '澳洲', 117: '新兴市场',
+  118: '中国央行', 119: '美联储', 120: '欧洲央行', 121: '英国央行', 122: '日本央行', 123: '加拿大央行', 124: '澳洲联储',
+  125: '中国数据', 126: '美国数据', 127: '欧元区数据', 128: '英国数据', 129: '日本数据', 130: '加拿大数据', 131: '澳洲数据',
+  132: '海外',
+}
+
+/** column → 市场（103上市公司/108债券跨域不给映射；区域列按属地归） */
+const EM_MARKET: Record<number, Market> = {
+  104: 'A股', 109: 'A股', 110: 'A股', 118: 'A股', 125: 'A股',
+  111: '美股', 119: '美股', 126: '美股',
+  106: '商品', 107: '外汇',
+  105: '国际', 112: '国际', 113: '国际', 114: '国际', 115: '国际', 116: '国际', 117: '国际',
+  120: '国际', 121: '国际', 122: '国际', 123: '国际', 124: '国际',
+  127: '国际', 128: '国际', 129: '国际', 130: '国际', 131: '国际', 132: '国际',
+}
+
+/** 多列共标时按具体度取：港股/商品/外汇等域 &gt; 美股 &gt; A股 &gt; 国际兜底 */
+const EM_PRIORITY: Market[] = ['港股', '商品', '外汇', '美股', '加密', 'A股', '国际', '其他']
+
+export function emMarket(cols: number[], text: string): Market {
+  const ms = new Set(cols.map((c) => EM_MARKET[c]).filter((m): m is Market => !!m))
+  const hit = EM_PRIORITY.find((m) => ms.has(m))
+  return hit ?? marketFromText(text, 'A股')
+}
+
+/** tags 用栏目名——滤掉无信息量的汇总列（100全部/102主快讯每条都带） */
+export const emTagNames = (cols: number[]): string[] =>
+  cols.map((c) => EM_COLUMN[c]).filter((n): n is string => !!n && n !== '全部' && n !== '7×24')
+
 /** 同花顺 tag 名 → 市场（'美股,港股,A股' 市场标签直达） */
 export function thsMarket(tagNames: string[], text: string): Market {
   if (tagNames.includes('美股')) return '美股'

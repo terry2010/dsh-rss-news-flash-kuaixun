@@ -7,7 +7,7 @@
 import type { MethodHandler } from 'dsh-rss-news-daily'
 import { getDoc, looksLikeChallenge, markAuth, type Bf } from '../transport.js'
 import { cst, stripTags } from './util.js'
-import { marketFromText, type KxItem } from '../taxonomy.js'
+import { emMarket, emTagNames, type KxItem } from '../taxonomy.js'
 
 const DOMAIN = 'newsapi.eastmoney.com'
 const API = `https://${DOMAIN}/kuaixun/v1/getlist_102_ajaxResult_50_1_.html`
@@ -18,6 +18,7 @@ interface EmItem {
   digest?: string
   showtime?: string   // 'YYYY-MM-DD HH:mm:ss'
   url_w?: string
+  column?: string     // 逗号分隔栏目 id（"100,102,105,110"），命名见 taxonomy.EM_COLUMN
 }
 
 export const eastmoney = (bf: Bf): MethodHandler => async (src, ctx) => {
@@ -30,14 +31,15 @@ export const eastmoney = (bf: Bf): MethodHandler => async (src, ctx) => {
   markAuth(bf(), DOMAIN, false)
   return items.map((i): KxItem => {
     const title = stripTags(i.title || i.digest || '').slice(0, 120)
+    const cols = (i.column ?? '').split(',').map(Number).filter((n) => n > 0)
     return {
       id: `em_${i.newsid}`,
       title,
       link: i.url_w || 'https://kuaixun.eastmoney.com/',
       content: stripTags(i.digest || i.title || ''),
       publishedAt: i.showtime ? cst(i.showtime) : new Date().toISOString(),
-      tags: [], // column 是纯数字栏目 id 无命名（102=7×24 主快讯）——不给标签
-      market: marketFromText(title, 'A股'),
+      tags: emTagNames(cols), // 官网栏目命名（taxonomy.EM_COLUMN 对照表）
+      market: emMarket(cols, title),
     }
   })
 }

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   marketFromText, clsMarket, jin10Market, jin10TagNames,
   wscnMarket, wscnTagNames, thsMarket, marketGuess,
+  emMarket, emTagNames, EM_COLUMN,
 } from '../lib/taxonomy.js'
 
 test('marketFromText: 标题关键词兜底', () => {
@@ -50,6 +51,18 @@ test('thsMarket: tag 名直达，缺省 A股', () => {
   assert.equal(thsMarket(['A股'], '某条'), 'A股')
   assert.equal(thsMarket([], '恒指大涨'), '港股')
   assert.equal(thsMarket([], '无信号'), 'A股')
+})
+
+test('emMarket/emTagNames: column 对照表（官网 JS 反查）', () => {
+  assert.equal(emMarket([100, 102, 104], '某条'), 'A股')   // 中国股市
+  assert.equal(emMarket([100, 102, 111], '某条'), '美股')  // 美国
+  assert.equal(emMarket([100, 102, 106], '某条'), '商品')
+  assert.equal(emMarket([100, 102, 105, 110], '法拍房'), 'A股') // 中国 优先于 全球股市
+  assert.equal(emMarket([100, 102, 132, 115], '某条'), '国际') // 海外+加拿大
+  assert.equal(emMarket([100, 102], '比特币涨'), '加密')   // 无映射列→标题兜底
+  assert.deepEqual(emTagNames([100, 102, 105, 110]), ['全球股市', '中国']) // 滤掉汇总列
+  assert.equal(EM_COLUMN[132], '海外')
+  assert.equal(EM_COLUMN[119], '美联储')
 })
 
 test('marketGuess: 存量回填按源气质+标题', () => {
