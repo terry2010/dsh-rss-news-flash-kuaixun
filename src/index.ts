@@ -135,6 +135,11 @@ function bootstrap(ctx: Context, log: ReturnType<Context['logger']>) {
     fetch: fetcher, log, signal: undefined, kv: db.kv(d.url),
   })
 
+  // 失败退避：源连续失败按 2^n×60s 拉长间隔（≤30min），成功即复位——
+  // 挂掉的源不再每分钟白打一次，恢复后自动回常速
+  const backoff = new Map<string, { streak: number; nextAt: number }>()
+  const BACKOFF_CAP = 30 * 60_000
+
   let running = false
   const poll = async () => {
     if (running) return
@@ -143,9 +148,22 @@ function bootstrap(ctx: Context, log: ReturnType<Context['logger']>) {
       // 各源新条目先全部入库，再统一过提醒——同批跨源报道才能互相命中「多源」
       const batch: AlertItem[] = []
       await Promise.allSettled(sources.sources.map(async (d) => {
+        const bo = backoff.get(d.url)
+        if (bo && Date.now() < bo.nextAt) return
         const h = handlers.get(d.method ?? '')
         if (!h) { log.warn(`no handler for ${d.method}`); return }
-        const items: RawItem[] = await h(feedSrc(d), mctx(d))
+        let items: RawItem[]
+        try {
+          items = await h(feedSrc(d), mctx(d))
+        } catch (e) {
+          const streak = (bo?.streak ?? 0) + 1
+          const delay = Math.min(POLL_MS * 2 ** streak, BACKOFF_CAP)
+          backoff.set(d.url, { streak, nextAt: Date.now() + delay })
+          log.warn(`${d.title} fetch failed ×${streak}，${Math.round(delay / 60000)}min 后重试: ${(e as Error).message}`)
+          return
+        }
+        if (bo?.streak) log.info(`${d.title} recovered after ${bo.streak} failure(s)`)
+        backoff.delete(d.url)
         const fresh = db.insert(d.url, d.title, items)
         if (!db.baseline(d.url)) { db.markBaseline(d.url); return } // 首跑基线：只入库不告警
         for (const it of fresh) {
