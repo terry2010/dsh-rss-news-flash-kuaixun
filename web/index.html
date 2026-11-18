@@ -73,6 +73,14 @@
   /* 聚合簇展开后的各源子行 */
   .row.sub { padding-left: 58px; background: color-mix(in srgb, var(--fg) 3%, transparent); }
   .row.sub .t, .row.sub .src { font-size: .8em; }
+  /* 窄栏：中列把标题挤成竖条——改两行流式，首行时间+徽标+标签、次行标题占满宽 */
+  @media (max-width: 560px) {
+    .row { display: flex; flex-wrap: wrap; align-items: center; }
+    .src { max-width: 62%; }
+    .tags { max-width: none; }
+    .txt { flex-basis: 100%; padding-top: 2px; }
+    .row.sub { padding-left: 18px; }
+  }
   .txt { grid-column: 3; grid-row: 1 / span 2; min-width: 0; align-self: start; padding-top: 1px; }
   .txt a { color: inherit; text-decoration: none; }
   .txt a:hover { text-decoration: underline; }
