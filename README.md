@@ -25,10 +25,10 @@
 ## 安装
 
 ```bash
-dsh plugin --profile <你的profile> add dsh-rss-news-flash-kuaixun
+dsh plugin --profile desktop add dsh-rss-news-flash-kuaixun
 ```
 
-或经 dshmarket 插件市场安装。装完重启 dsh 生效；首次加载若未检测到主插件会弹层指引。
+（多数用户的 profile 名就是 `desktop`；改过名字的换成自己的 profile 名。）或经 dshmarket 插件市场安装。装完重启 dsh 生效；首次加载若未检测到主插件会弹层指引。
 
 ## 依赖
 
@@ -71,7 +71,7 @@ dsh plugin --profile <你的profile> add dsh-rss-news-flash-kuaixun
 </details>
 
 ```bash
-dsh plugin --profile <你的profile> add dsh-rss-news-browser-fetch
+dsh plugin --profile desktop add dsh-rss-news-browser-fetch
 ```
 
 ## 声明
