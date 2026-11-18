@@ -42,16 +42,16 @@ dsh plugin --profile <你的profile> add dsh-rss-news-flash-kuaixun
 <a id="browser-fetch"></a>
 ## 为什么建议安装 browser-fetch
 
-快讯的传输层是 **node fetch 优先、浏览器回落**：六个源默认用 dsh 运行时直接请求各自端点，只有被拒时才借专用 Chrome 的页面上下文代发（带真实浏览器指纹与该域 cookie）。但有两个源**稳定拒绝非浏览器客户端**，没有 [dsh-rss-news-browser-fetch](https://github.com/terry2010/dsh-rss-news-browser-fetch) 就会断供：
+快讯的传输层是 **node fetch 优先、浏览器回落**：六个源默认用 dsh 运行时直接请求各自端点；对响应不稳定的端点，自动改用专用 Chrome 的页面上下文发请求（发自你本机的浏览器会话、自动携带该域 cookie——与你手动打开页面等效）。有两个源**对非浏览器请求基本不响应**，没有 [dsh-rss-news-browser-fetch](https://github.com/terry2010/dsh-rss-news-browser-fetch) 就会断供：
 
 | 源 | 直连表现 | 机制 |
 |---|---|---|
-| 同花顺（10jqka） | 连接无限挂起（tarpit） | 不走拒绝、走挂起——代码里标记 `preferBrowser`，每轮直接走浏览器跳过超时空等 |
+| 同花顺（10jqka） | node 请求连接挂起（tarpit） | 代码里标记 `preferBrowser`，每轮直接走浏览器通道，跳过超时空等 |
 | 金十（jin10） | 5xx / 网络错误 | node 失败后自动回落 `bf.fetch`；无 browser-fetch 则持续失败、按退避拉长轮询 |
 
 其余四源（财联社 / 华尔街见闻 / 东方财富 / 新浪）目前直连稳定，缺 browser-fetch 时不受影响。插件缺席**不报错、不弹窗**——设置面板顶部会出现一条提示。装上后同花顺/金十自动恢复，无需任何配置。
 
-**装了之后会看到什么**：专用 Chrome 窗口里会周期性出现域 tab——这是快讯轮询在借页面上下文发请求，属正常工作机制。tab 平时停在该域的 `robots.txt` 待命页（同源、零渲染成本，cookie 罐照常复用），不代表在浏览无关页面。若专用 Chrome 被关闭/退出，同花顺与金十将断供（条目停更、按退避拉长轮询），其余四源照常。
+**装了之后会看到什么**：专用 Chrome 窗口里会周期性出现域 tab——这是快讯轮询在你的浏览器会话内发请求，属正常工作机制。tab 平时停在该域的 `robots.txt` 待命页（同源、零渲染成本，cookie 罐照常复用），不代表在浏览无关页面。若专用 Chrome 被关闭/退出，同花顺与金十将断供（条目停更、按退避拉长轮询），其余四源照常。
 
 ```bash
 dsh plugin --profile <你的profile> add dsh-rss-news-browser-fetch
@@ -60,6 +60,7 @@ dsh plugin --profile <你的profile> add dsh-rss-news-browser-fetch
 ## 声明
 
 - 本插件仅从各源**公开可访问的端点**读取快讯标题与摘要，全部数据保存在用户本地，不提供转发、再分发或商用数据服务
+- 浏览器通道访问的是你本可在浏览器中手动打开的公开页面，请求发自你自己的浏览器会话；请自行确认并遵守目标站点的访问条款
 - 快讯原文版权归源站所有，点击条目跳转原站阅读；内容仅供参考，不构成任何投资建议
 
 ## 开发
@@ -80,7 +81,7 @@ git clone https://github.com/terry2010/dsh-rss-news-daily ../dsh-rss-news-daily
 ## 相关插件
 
 - **[dsh-rss-news-daily](https://github.com/terry2010/dsh-rss-news-daily)** —— 主插件（必需）：RSS 订阅 + AI 每日精选/时段快报 + 侧栏新闻阅读器，本插件的快报产线/通知/界面均由它提供
-- **[dsh-rss-news-browser-fetch](https://github.com/terry2010/dsh-rss-news-browser-fetch)** —— browserFetch 浏览器传输服务（可选）：node fetch 被源端风控拦截时自动回落真实浏览器取数
+- **[dsh-rss-news-browser-fetch](https://github.com/terry2010/dsh-rss-news-browser-fetch)** —— browserFetch 浏览器传输服务（可选）：node fetch 响应不稳定时自动回落用户本机浏览器会话取数
 
 ## License
 
