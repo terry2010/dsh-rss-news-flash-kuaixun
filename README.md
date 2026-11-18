@@ -51,6 +51,8 @@ dsh plugin --profile <你的profile> add dsh-rss-news-flash-kuaixun
 
 其余四源（财联社 / 华尔街见闻 / 东方财富 / 新浪）目前直连稳定，缺 browser-fetch 时不受影响。插件缺席**不报错、不弹窗**——设置面板顶部会出现一条提示。装上后同花顺/金十自动恢复，无需任何配置。
 
+**装了之后会看到什么**：专用 Chrome 窗口里会周期性出现域 tab——这是快讯轮询在借页面上下文发请求，属正常工作机制。tab 平时停在该域的 `robots.txt` 待命页（同源、零渲染成本，cookie 罐照常复用），不代表在浏览无关页面。若专用 Chrome 被关闭/退出，同花顺与金十将断供（条目停更、按退避拉长轮询），其余四源照常。
+
 ```bash
 dsh plugin --profile <你的profile> add dsh-rss-news-browser-fetch
 ```

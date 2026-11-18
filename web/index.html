@@ -130,6 +130,14 @@
     border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
   }
   .ovl .depNotice a { color: var(--acc); }
+  /* 已装 browser-fetch 的说明条——中性 accent 色，非警告 */
+  .ovl .depInfo {
+    display: block; margin: 0 0 12px; padding: 8px 10px; border-radius: var(--r-md);
+    font-size: 12px; line-height: 1.6; color: var(--lead);
+    background: color-mix(in srgb, var(--acc) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--acc) 25%, transparent);
+  }
+  .ovl .depInfo a { color: var(--acc); }
 </style>
 </head>
 <body>
@@ -170,6 +178,11 @@
     <div id="depNotice" class="depNotice" hidden>
       未检测到 <b>browser-fetch</b> 插件：同花顺、金十两个源会断供（其余四源不受影响）。
       <a href="https://github.com/terry2010/dsh-rss-news-flash-kuaixun#browser-fetch" target="_blank" rel="noopener noreferrer">为什么建议安装 →</a>
+    </div>
+    <div id="depInfo" class="depInfo" hidden>
+      <b>browser-fetch</b> 运行中：同花顺、金十只认真实浏览器会话，所以专用 Chrome 会随每轮抓取被唤起（域 tab 停在 robots.txt 待命页，属正常）。
+      若浏览器不启动，这两个源会断供。
+      <a href="https://github.com/terry2010/dsh-rss-news-flash-kuaixun#browser-fetch" target="_blank" rel="noopener noreferrer">了解原理 →</a>
     </div>
     <h4>显示源（勾选=显示，短标可改）</h4>
     <div id="cfgSrcs"></div>
@@ -603,11 +616,12 @@ async function openCfg() {
   }
   $('#cfgMark').checked = cfg.mark
   $('#cfg').classList.add('open')
-  // 可选依赖探测：browser-fetch 不在场则顶部提示（失败按已装处理，不误报）
+  // 可选依赖探测：browser-fetch 不在场→警告条；在场→说明条（解释浏览器为何会被唤起）
   try {
     const d = await kxApi('/deps')
     $('#depNotice').hidden = d.browserFetch !== false
-  } catch { $('#depNotice').hidden = true }
+    $('#depInfo').hidden = d.browserFetch !== true
+  } catch { $('#depNotice').hidden = $('#depInfo').hidden = true }
   // 提醒配置走服务端——异步载入，不阻塞设置面板；失败时词表不回传
   try {
     const j = await kxApi('/alerts')
