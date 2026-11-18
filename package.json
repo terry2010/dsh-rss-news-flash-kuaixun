@@ -1,12 +1,13 @@
 {
   "name": "dsh-rss-news-flash-kuaixun",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "Apache-2.0",
   "description": "dsh companion plugin: real-time flash news adapters — 财联社电报/金十/华尔街见闻/东方财富/同花顺/新浪财经 7×24.",
   "type": "module",
   "main": "lib/index.js",
   "files": [
     "lib",
+    "web",
     "cordis.patch.yml"
   ],
   "repository": {
@@ -62,5 +63,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test test/*.test.mjs",
     "prepublishOnly": "npm run build"
-  }
+  },
+  "author": "terry2010 <jstel@126.com>"
 }
