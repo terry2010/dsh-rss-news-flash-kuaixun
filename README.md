@@ -57,7 +57,7 @@ dsh plugin --profile <你的profile> add dsh-rss-news-flash-kuaixun
 **是否必须安装？** 不是。缺少该插件时插件照常运行，仅上述两个源无数据，设置面板顶部会显示当前状态。安装后自动生效，无需任何配置。
 
 <details>
-<summary>技术细节（好奇可展开）</summary>
+<summary>点击我展开内容</summary>
 
 传输层 node fetch 优先、浏览器回落：
 
