@@ -122,6 +122,14 @@
   .ovl .foot .pri { background: var(--pri-bg); color: var(--pri-fg); box-shadow: none; font-weight: 500; }
   .ovl .foot .pri:hover { background: var(--pri-hover); }
   .ovl .hint { font-size: 12px; color: var(--dim2); line-height: 1.6; }
+  /* 可选依赖提示：未装 browser-fetch 时置顶在设置面板 */
+  .ovl .depNotice {
+    display: block; margin: 0 0 12px; padding: 8px 10px; border-radius: var(--r-md);
+    font-size: 12px; line-height: 1.6; color: var(--warn);
+    background: color-mix(in srgb, var(--warn) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+  }
+  .ovl .depNotice a { color: var(--acc); }
 </style>
 </head>
 <body>
@@ -159,6 +167,10 @@
 <div id="cfg" class="ovl">
   <div class="panel">
     <h3>快讯设置</h3>
+    <div id="depNotice" class="depNotice" hidden>
+      未检测到 <b>browser-fetch</b> 插件：同花顺、金十两个源会断供（其余四源不受影响）。
+      <a href="https://github.com/terry2010/dsh-rss-news-flash-kuaixun#browser-fetch" target="_blank" rel="noopener noreferrer">为什么建议安装 →</a>
+    </div>
     <h4>显示源（勾选=显示，短标可改）</h4>
     <div id="cfgSrcs"></div>
     <h4>重要</h4>
@@ -591,6 +603,11 @@ async function openCfg() {
   }
   $('#cfgMark').checked = cfg.mark
   $('#cfg').classList.add('open')
+  // 可选依赖探测：browser-fetch 不在场则顶部提示（失败按已装处理，不误报）
+  try {
+    const d = await kxApi('/deps')
+    $('#depNotice').hidden = d.browserFetch !== false
+  } catch { $('#depNotice').hidden = true }
   // 提醒配置走服务端——异步载入，不阻塞设置面板；失败时词表不回传
   try {
     const j = await kxApi('/alerts')

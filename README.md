@@ -39,6 +39,22 @@ dsh plugin --profile <你的profile> add dsh-rss-news-flash-kuaixun
 
 内部标识：cordis entry id 为 `rss-news-flash-kuaixun`（去 `dsh-` 前缀的惯例，同主插件 `rss-news-daily`）；数据目录 `companions/rss-news-flash-kuaixun/`，旧名 `news-kuaixun` 的目录与 provider 源行在首次启动时自动迁移。
 
+<a id="browser-fetch"></a>
+## 为什么建议安装 browser-fetch
+
+快讯的传输层是 **node fetch 优先、浏览器回落**：六个源默认用 dsh 运行时直接请求各自端点，只有被拒时才借专用 Chrome 的页面上下文代发（带真实浏览器指纹与该域 cookie）。但有两个源**稳定拒绝非浏览器客户端**，没有 [dsh-rss-news-browser-fetch](https://github.com/terry2010/dsh-rss-news-browser-fetch) 就会断供：
+
+| 源 | 直连表现 | 机制 |
+|---|---|---|
+| 同花顺（10jqka） | 连接无限挂起（tarpit） | 不走拒绝、走挂起——代码里标记 `preferBrowser`，每轮直接走浏览器跳过超时空等 |
+| 金十（jin10） | 5xx / 网络错误 | node 失败后自动回落 `bf.fetch`；无 browser-fetch 则持续失败、按退避拉长轮询 |
+
+其余四源（财联社 / 华尔街见闻 / 东方财富 / 新浪）目前直连稳定，缺 browser-fetch 时不受影响。插件缺席**不报错、不弹窗**——设置面板顶部会出现一条提示。装上后同花顺/金十自动恢复，无需任何配置。
+
+```bash
+dsh plugin --profile <你的profile> add dsh-rss-news-browser-fetch
+```
+
 ## 声明
 
 - 本插件仅从各源**公开可访问的端点**读取快讯标题与摘要，全部数据保存在用户本地，不提供转发、再分发或商用数据服务

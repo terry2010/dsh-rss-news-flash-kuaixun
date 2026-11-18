@@ -206,7 +206,8 @@ function bootstrap(ctx: Context, log: ReturnType<Context['logger']>) {
     log.warn('rndSources apiVersion < 2: 快讯快报未注册（升级 dsh-rss-news-daily）')
   }
   ctx.inject(['webServer'], (c) => {
-    const dispose = mountUi((c as unknown as { webServer: WebServerLike }).webServer, log, alerts, db)
+    const dispose = mountUi((c as unknown as { webServer: WebServerLike }).webServer, log, alerts, db,
+      () => hasService(ctx, 'browserFetch'))
     c.effect(() => dispose)
   })
   ctx.effect(() => () => {
